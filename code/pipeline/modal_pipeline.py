@@ -101,6 +101,10 @@ base_image = (
         "tenacity==9.0.0",
     )
     .add_local_dir(str(PROJECT_DIR), "/app", copy=True)
+    # Manuscript templates live at <repo_root>/manuscript_template, a sibling of
+    # code/. Mount them into /app/manuscript_template so Phase 13 can render
+    # without local-disk access.
+    .add_local_dir(str(PROJECT_DIR.parent / "manuscript_template"), "/app/manuscript_template", copy=True)
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -678,6 +682,156 @@ def resume_pipeline(run_id: str, skip_phase6: bool = False) -> dict:
 
     print(f"\nResume complete. run_id={run_id}")
     return {"run_id": run_id, "audit": audit_result}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 13 — Manuscript / cover letter / appendix / supplementary rendering
+# Moved from local Phase D so the entire pipeline is laptop-independent.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@app.function(
+    image=base_image,
+    volumes={
+        "/predictions": predictions_vol,
+        "/results": results_vol,
+        "/data": data_vol,
+    },
+    timeout=1800,
+)
+def phase13_render_manuscript(run_id: str) -> dict:
+    """Render final manuscript drafts (main_text, cover_letter, appendix,
+    supplementary ZIP) from canonical CSVs + templates baked into the
+    deployed image. Outputs land on /results/drafts and /results/supplementary
+    so the user can pull them at any time without local Phase D execution.
+
+    Uses subprocess against the same CLIs phase_d_render.sh invokes locally.
+    """
+    import shutil
+    import subprocess
+    print(f"Phase 13: render manuscripts (run_id={run_id})")
+
+    results_dir = Path("/results")
+    predictions_dir = Path("/predictions/canonical")
+    drafts_dir = results_dir / "drafts"
+    supplementary_dir = results_dir / "supplementary"
+    filtered_dir = results_dir / "predictions_filtered"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    supplementary_dir.mkdir(parents=True, exist_ok=True)
+    filtered_dir.mkdir(parents=True, exist_ok=True)
+
+    pipeline = "/app/pipeline"
+    audit_dir = "/app/audit"
+    template_dir = Path("/app/manuscript_template")
+    manifest_path = Path("/predictions/run_manifest.json")
+    ling_path = results_dir / "linguistic_features.json"
+
+    # 1. Linguistic features
+    print("  [1/5] Computing linguistic features...")
+    subprocess.run([
+        "python3", f"{pipeline}/compute_linguistic_features.py",
+        "--realworld", "/data/realworld_cases_n2000.json",
+        "--physician", "/data/physician_holdout_n41.json",
+        "--output", str(ling_path),
+    ], check=True)
+
+    # 2. Filter predictions to this run_id
+    print(f"  [2/5] Filtering predictions to run_id={run_id}...")
+    for csv in predictions_dir.glob(f"*_{run_id}.csv"):
+        shutil.copy(csv, filtered_dir / csv.name)
+    n_filtered = len(list(filtered_dir.glob("*.csv")))
+    print(f"    {n_filtered} per-architecture CSVs filtered")
+
+    # 3. Render each template via manuscript_renderer CLI
+    print("  [3/5] Rendering manuscripts...")
+    for template_name, output_name in (
+        ("main_text_template.md", "main_text.md"),
+        ("cover_letter_template.md", "cover_letter.md"),
+        ("appendix_template.md", "appendix.md"),
+    ):
+        out_path = drafts_dir / output_name
+        subprocess.run([
+            "python3", f"{pipeline}/manuscript_renderer.py",
+            "--template", str(template_dir / template_name),
+            "--predictions", str(filtered_dir),
+            "--results", str(results_dir),
+            "--manifest", str(manifest_path),
+            "--output", str(out_path),
+        ], check=True)
+        print(f"    rendered {output_name}")
+
+    # 4. Build supplementary ZIP
+    print("  [4/5] Building supplementary ZIP...")
+    zip_path = supplementary_dir / "multimedia_appendix_2.zip"
+    subprocess.run([
+        "python3", f"{pipeline}/build_supplementary_package.py",
+        "--predictions-dir", str(filtered_dir),
+        "--results-dir", str(results_dir),
+        "--manifest", str(manifest_path),
+        "--output", str(zip_path),
+    ], check=True)
+
+    # 5. Consistency audit on rendered drafts (non-strict — Phase 13 must not fail)
+    print("  [5/5] Running consistency audit...")
+    audit_proc = subprocess.run([
+        "python3", f"{audit_dir}/consistency_audit.py",
+        str(drafts_dir / "main_text.md"),
+        str(drafts_dir / "appendix.md"),
+    ], capture_output=True, text=True)
+    audit_log_path = drafts_dir / "consistency_audit_log.txt"
+    audit_log_path.write_text((audit_proc.stdout or "") + "\n---STDERR---\n" + (audit_proc.stderr or ""))
+
+    results_vol.commit()
+    print(f"Phase 13 complete. Outputs in /results/drafts/ and /results/supplementary/")
+    return {
+        "status": "rendered",
+        "run_id": run_id,
+        "drafts": [str(p) for p in drafts_dir.glob("*.md")],
+        "supplementary": str(zip_path),
+        "consistency_audit_log": str(audit_log_path),
+        "consistency_audit_exit_code": audit_proc.returncode,
+    }
+
+
+@app.function(
+    image=base_image,
+    volumes={
+        "/predictions": predictions_vol,
+        "/results": results_vol,
+        "/data": data_vol,
+    },
+    timeout=43200,  # 12h max wait
+)
+def wait_and_render(run_id: str) -> dict:
+    """Poll the results volume for the Phase 9-12 signal, then invoke Phase 13.
+
+    Launch detached when you want the manuscript to render automatically
+    after the in-flight orchestrate/resume_pipeline run completes. Lets the
+    user walk away — final drafts land on the results volume regardless of
+    local connectivity.
+
+      modal run --detach modal_pipeline.py::wait_and_render --run-id <uuid>
+    """
+    import time
+    print(f"wait_and_render: polling for Phase 12 output on run_id={run_id}")
+    signal_file = Path("/results/operating_curves.csv")
+    drafts_signal = Path("/results/drafts/main_text.md")
+    deadline = time.time() + 11.5 * 3600  # leave headroom inside the 12h cap
+
+    poll_count = 0
+    while time.time() < deadline:
+        results_vol.reload()
+        if drafts_signal.exists():
+            print("Drafts already exist; nothing to do.")
+            return {"status": "already_rendered", "run_id": run_id}
+        if signal_file.exists():
+            print(f"Phase 12 signal detected after {poll_count} polls; invoking Phase 13.")
+            return phase13_render_manuscript.remote(run_id)
+        poll_count += 1
+        if poll_count % 10 == 0:
+            print(f"  ({poll_count} polls; results volume still empty)")
+        time.sleep(60)
+    return {"status": "timeout", "run_id": run_id, "polls": poll_count}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
