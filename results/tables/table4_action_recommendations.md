@@ -1,0 +1,9 @@
+| Architecture | Appropriate (n, %) | Under-triage (n, %) | Over-triage (n, %) | Total |
+|---|---|---|---|---|
+| ActionHead (action recommender) | 1142 (57.1%) | 431 (21.6%) | 427 (21.4%) | 2000 |
+| Constellation architecture | 1360 (68.0%) | 588 (29.4%) | 52 (2.6%) | 2000 |
+| CQL controller (reward-optimized) | 236 (11.8%) | 59 (3.0%) | 1705 (85.2%) | 2000 |
+| CQL controller (sensitivity-optimized) | 1391 (69.5%) | 602 (30.1%) | 7 (0.3%) | 2000 |
+| Rule-based guardrails | 1379 (69.0%) | 589 (29.4%) | 32 (1.6%) | 2000 |
+| Logistic regression + TF-IDF | 240 (12.0%) | 66 (3.3%) | 1694 (84.7%) | 2000 |
+| XGBoost + sentence-BERT | 1045 (52.2%) | 432 (21.6%) | 523 (26.1%) | 2000 |

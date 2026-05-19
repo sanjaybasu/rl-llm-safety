@@ -1,0 +1,22 @@
+# Patient data — NEVER commit to public repo (HIPAA + Waymark DUA)
+predictions/canonical/
+predictions/canonical_partial/
+predictions/canonical_filtered/
+predictions/run_manifest.json
+
+# Temporary partial outputs
+results_partial/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Mac
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

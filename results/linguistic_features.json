@@ -1,0 +1,24 @@
+{
+  "realworld": {
+    "n_records": 2000,
+    "grade_level_mean": 4.59,
+    "grade_level_median": 4.45,
+    "colloquialism_pct": 59.1,
+    "abbreviation_pct": 24.5,
+    "abbreviation_avg_per_message": 0.31,
+    "implicit_context_pct": 7.8,
+    "word_count_median": 21,
+    "word_count_mean": 28.4
+  },
+  "physician": {
+    "n_records": 41,
+    "grade_level_mean": 5.81,
+    "grade_level_median": 5.84,
+    "colloquialism_pct": 19.5,
+    "abbreviation_pct": 36.6,
+    "abbreviation_avg_per_message": 0.39,
+    "implicit_context_pct": 29.3,
+    "word_count_median": 24,
+    "word_count_mean": 38.6
+  }
+}
