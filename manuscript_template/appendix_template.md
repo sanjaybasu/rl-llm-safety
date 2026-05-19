@@ -8,7 +8,7 @@ Every numerical value in this appendix renders from canonical CSVs at build time
 
 ## A. TRIPOD+AI checklist
 
-Following Collins et al. 2024 (BMJ 2024;385:e078378). The TRIPOD+AI items below map each reporting requirement to the corresponding location in the main manuscript.
+Following Collins et al. [2]. The TRIPOD+AI items below map each reporting requirement to the corresponding location in the main manuscript.
 
 | Item | Topic | Reporting location |
 |---|---|---|
@@ -38,7 +38,7 @@ Following Collins et al. 2024 (BMJ 2024;385:e078378). The TRIPOD+AI items below 
 
 ## B. DECIDE-AI checklist
 
-Following Vasey et al. 2022 (BMJ 2022;377:e070904). The DECIDE-AI items below map each reporting requirement to the corresponding location in the main manuscript.
+Following Vasey et al. [3]. The DECIDE-AI items below map each reporting requirement to the corresponding location in the main manuscript.
 
 | Item | Topic | Reporting location |
 |---|---|---|
@@ -89,7 +89,7 @@ The implementation encodes labels in 9 classes (indices 0 through 8) for compati
 
 ### C.2 Conservative Q-Learning controller
 
-The Conservative Q-Learning (Kumar A et al., NeurIPS 2020) controller maps the 23-dimensional calibrated hazard probability vector (output of the upstream sentence-BERT + multinomial logistic detector with temperature scaling, T={cql_temperature}) to one of the 8 escalation actions. The reward function is asymmetric: +10 for a correct action, -50 for a missed hazard, -2 for a false alarm. The expected reward calculation at inference time selects the action that maximizes expected reward.
+The Conservative Q-Learning [1] controller maps the 23-dimensional calibrated hazard probability vector (output of the upstream sentence-BERT + multinomial logistic detector with temperature scaling, T={cql_temperature}) to one of the 8 escalation actions. The reward function is asymmetric: +10 for a correct action, -50 for a missed hazard, -2 for a false alarm. The expected reward calculation at inference time selects the action that maximizes expected reward.
 
 The sensitivity-optimized variant applies a calibrated probability threshold ({thresholds.cql_sens_opt}) chosen on the training/validation split to maximize sensitivity subject to specificity at least 0.70. The reward-optimized variant applies the threshold derived analytically from the reward weights: P(hazard) ≥ 2/62 ≈ 0.032.
 
@@ -165,10 +165,12 @@ These files contain no patient text and no patient identifier beyond opaque mess
 
 ---
 
-## G. References (Multimedia Appendix 1)
+## G. References
 
-[All citations in the appendix; numbered independently from the main manuscript reference list. Both lists use the verified citations from Phase A literature review.]
+This appendix uses its own sequentially-numbered reference list. The same primary literature is cross-referenced in the main manuscript reference list under different numbers.
 
-1. Kumar A, Zhou A, Tucker G, Levine S. Conservative Q-learning for offline reinforcement learning. Advances in NeurIPS. 2020;33:1179-1191.
-2. Collins GS, Moons KGM, Dhiman P, Riley RD, Beam AL, Van Calster B, Ghassemi M, Liu X, Reitsma JB, van Smeden M, et al. TRIPOD+AI statement: updated guidance for reporting clinical prediction models that use regression or machine learning methods. BMJ 2024;385:e078378. doi:10.1136/bmj-2023-078378
-3. Vasey B, Nagendran M, Campbell B, Clifton DA, Collins GS, Denaxas S, Denniston AK, Faes L, Geerts B, Ibrahim M, et al. Reporting guideline for the early stage clinical evaluation of decision support systems driven by artificial intelligence: DECIDE-AI. BMJ 2022;377:e070904. doi:10.1136/bmj-2022-070904
+1. Kumar A, Zhou A, Tucker G, Levine S. Conservative Q-learning for offline reinforcement learning. Adv Neural Inf Process Syst. 2020;33:1179-1191.
+
+2. Collins GS, Moons KGM, Dhiman P, Riley RD, Beam AL, Van Calster B, Ghassemi M, Liu X, Reitsma JB, van Smeden M, et al. TRIPOD+AI statement: updated guidance for reporting clinical prediction models that use regression or machine learning methods. BMJ. 2024;385:e078378. doi:10.1136/bmj-2023-078378. PMID: 38626948.
+
+3. Vasey B, Nagendran M, Campbell B, Clifton DA, Collins GS, Denaxas S, Denniston AK, Faes L, Geerts B, Ibrahim M, et al. Reporting guideline for the early stage clinical evaluation of decision support systems driven by artificial intelligence: DECIDE-AI. BMJ. 2022;377:e070904. doi:10.1136/bmj-2022-070904. PMID: 35584845.
