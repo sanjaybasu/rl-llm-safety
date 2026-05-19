@@ -382,7 +382,7 @@ def phase5_inference_local(run_id: str) -> str:
         "/data": data_vol,
         "/predictions": predictions_vol,
     },
-    timeout=7200,
+    timeout=43200,  # 12h ceiling — Modal force-kills around this point; llm_inference.py checkpoints every 100 msgs so a force-kill loses ≤99 messages, not the whole 2000
     secrets=[
         modal.Secret.from_name("anthropic"),
         modal.Secret.from_name("google"),
@@ -638,6 +638,45 @@ def orchestrate() -> dict:
     print(f"Pipeline complete. run_id={run_id}")
     print(f"Outputs in volumes: rl-llm-safety-v3-predictions, rl-llm-safety-v3-results")
     print("=" * 70)
+    return {"run_id": run_id, "audit": audit_result}
+
+
+@app.function(image=base_image, timeout=86400)
+def resume_pipeline(run_id: str, skip_phase6: bool = False) -> dict:
+    """Resume a pipeline run from after Phase 5 — assumes Phase 0-5 already
+    wrote to the volume under the given run_id.
+
+    Use after a Phase 6 timeout / failure. Phase 6 is checkpoint-resumable so
+    relaunching it skips any message_ids already in the per-architecture CSV.
+
+      modal run --detach modal_pipeline.py::resume_pipeline --run-id <uuid>
+    """
+    print(f"Resuming pipeline for run_id={run_id} (skip_phase6={skip_phase6})")
+
+    if not skip_phase6:
+        phase6_handles = [
+            phase6_inference_llm.spawn(arch, run_id)
+            for arch in ("claude_opus_4_7_safety", "gemini_3_1_pro_safety")
+        ]
+        for h in phase6_handles:
+            h.get()
+        print("[Phase 6 complete] LLM inference done (resumed from checkpoints)")
+
+    phase8_consolidate.remote(run_id)
+    print("[Phase 8 complete] predictions verified")
+
+    phase9_metrics.remote(run_id)
+    phase10_mcnemar.remote(run_id)
+    phase11_bootstrap.remote(run_id)
+    print("[Phase 9-11 complete] metrics + McNemar + bootstrap done")
+
+    phase12_tables_figures.remote(run_id)
+    print("[Phase 12 complete] tables and figures rendered")
+
+    audit_result = phase14_audit.remote(run_id)
+    print(f"[Phase 14 complete] audit status: {audit_result['status']}")
+
+    print(f"\nResume complete. run_id={run_id}")
     return {"run_id": run_id, "audit": audit_result}
 
 

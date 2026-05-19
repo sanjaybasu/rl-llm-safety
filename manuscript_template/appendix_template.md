@@ -1,4 +1,4 @@
-# [TEMPLATE] Multimedia Appendix 1 — Supplementary Methods, Tables, and Figures
+# Multimedia Appendix 1 — Supplementary Methods, Tables, and Figures
 
 This appendix accompanies the main manuscript titled "AI safety evaluation in an underrepresented Medicaid population: real-world performance of clinical decision support and frontier language models on patient messaging triage."
 
@@ -8,11 +8,67 @@ Every numerical value in this appendix renders from canonical CSVs at build time
 
 ## A. TRIPOD+AI checklist
 
-[To be completed item-by-item; TRIPOD+AI item map at https://www.tripod-statement.org/]
+Following Collins et al. 2024 (BMJ 2024;385:e078378). The TRIPOD+AI items below map each reporting requirement to the corresponding location in the main manuscript.
+
+| Item | Topic | Reporting location |
+|---|---|---|
+| 1a, 1b | Title — identify as AI prediction model study; specify development/validation | Main text, Title |
+| 2 | Structured abstract — relevant information; key results | Main text, Abstract |
+| 3a, 3b | Background — clinical context, rationale; objectives | Main text, Introduction |
+| 4 | Source of data — type (retrospective); key dates | Main text, Methods §"Study design and population" |
+| 5a, 5b, 5c | Participants — setting/eligibility; outcome definition; predictor definition | Main text, Methods §"Study design and population", §"Outcomes" |
+| 6a, 6b | Outcome — definition and assessment; censoring/missing | Main text, Methods §"Outcomes" |
+| 7a, 7b | Predictors — definition; coding | Main text, Methods §"Architectures evaluated" |
+| 8 | Sample size — calculation and rationale | Main text, Methods §"Study design and population" |
+| 9 | Missing data — handling | Main text, Methods §"Outcomes"; Appendix §C.4 |
+| 10a, 10b, 10c, 10d | Model development — algorithm, hyperparameter selection, model specification, training/calibration | Main text, Methods §"Architectures evaluated"; Appendix §C |
+| 10e | Software and computing environment | Code repository; Methods §"Reporting framework and reproducibility" |
+| 11 | Risk groups — handling, transparency | Main text, Results §"Equity-stratified analysis" |
+| 12 | Model evaluation — performance measures; calibration; uncertainty | Main text, Methods §"Statistical analysis"; Results §"Hazard detection performance", §"Operating-point analysis" |
+| 13a, 13b, 13c | Participants — descriptive statistics; outcome distribution; missing | Main text, Results §"Population characteristics"; Table 1 |
+| 14a, 14b | Model development — final model; performance | Main text, Results §"Hazard detection performance"; Tables 2-3 |
+| 15 | Model performance — measures with uncertainty | Main text, Tables 2-3; Appendix Tables S1-S2 |
+| 16 | Model updating | Not applicable to this evaluation |
+| 17 | Interpretation — performance in context | Main text, Discussion §"Principal findings", §"Comparison with prior work" |
+| 18 | Limitations | Main text, Discussion §"Strengths and limitations" |
+| 19 | Generalizability — applicability to other settings | Main text, Discussion §"Strengths and limitations", §"Future work" |
+| 20 | Supplementary information — protocol, data, code | Code repository; Supplementary File 2 (per-message predictions); Methods §"Reporting framework and reproducibility" |
+| 21 | Funding | Main text, Declarations §"Funding" |
+| AI 1-7 | AI-specific items — model architecture, fairness, transparency, reproducibility, interpretability | Methods §"Architectures evaluated"; Appendix §C; Results §"Equity-stratified analysis"; code repository |
 
 ## B. DECIDE-AI checklist
 
-[To be completed item-by-item; DECIDE-AI item map at https://decide-ai.org/]
+Following Vasey et al. 2022 (BMJ 2022;377:e070904). The DECIDE-AI items below map each reporting requirement to the corresponding location in the main manuscript.
+
+| Item | Topic | Reporting location |
+|---|---|---|
+| 1 | Title — identify as early-stage clinical evaluation of AI-driven decision support | Main text, Title |
+| 2 | Structured abstract | Main text, Abstract |
+| 3 | Rationale — describe scientific background and clinical problem | Main text, Introduction |
+| 4 | Objectives — specify the objectives of the early-stage clinical evaluation | Main text, Introduction final paragraph |
+| 5 | Trial registration or protocol availability | Not applicable (retrospective evaluation) |
+| 6 | Study design — describe the study design with reference to design type | Main text, Methods §"Study design and population" |
+| 7a, 7b | Eligibility criteria, settings, and locations | Main text, Methods §"Study design and population" |
+| 8a, 8b | Intervention — describe the AI system and decision support intervention | Main text, Methods §"Architectures evaluated"; Appendix §C |
+| 9 | Standards — describe the development and validation standards used | Main text, Methods §"Reporting framework and reproducibility" (TRIPOD+AI, DECIDE-AI) |
+| 10a, 10b, 10c | Outcomes — primary, secondary, and safety outcomes | Main text, Methods §"Outcomes" |
+| 11 | Sample size determination | Main text, Methods §"Study design and population" |
+| 12 | Statistical methods | Main text, Methods §"Statistical analysis" |
+| 13 | Data quality assurance — describe quality assurance procedures for inputs/outputs | Main text, Methods §"Ethics and oversight"; Appendix §C.5 |
+| 14 | Implementation — describe the level of integration with the clinical workflow | Not directly evaluated — retrospective design without prospective workflow integration; addressed in Discussion §"Implications for deployment" |
+| 15 | Human-AI interaction — describe interaction modality | Main text, Methods §"Architectures evaluated"; Discussion §"Strengths and limitations" |
+| 16 | Modifications during the study — describe any modifications to AI or protocol | None; single canonical pipeline run as pre-registered |
+| 17 | Errors and adverse events — describe any errors and how they were handled | Main text, Methods §"Statistical analysis"; Results §"Hazard detection performance" (false-negative reporting) |
+| 18 | Participant flow | Main text, Methods §"Study design and population"; Results §"Population characteristics" |
+| 19 | Baseline characteristics | Main text, Results §"Population characteristics"; Table 1 |
+| 20 | Outcomes and estimation | Main text, Results §"Hazard detection performance", §"Operating-point analysis", §"Action recommendation appropriateness" |
+| 21 | Subgroup analyses | Main text, Results §"Equity-stratified analysis"; Appendix Table S4 |
+| 22 | Adverse events — report and discuss | Main text, Results §"Hazard detection performance" (false negatives per 1,000 messages); Discussion §"Principal findings" |
+| 23a, 23b | Limitations and generalisability | Main text, Discussion §"Strengths and limitations" |
+| 24 | Interpretation — in context of available evidence | Main text, Discussion §"Comparison with prior work" |
+| 25 | Implications — clinical, research, and policy | Main text, Discussion §"Implications for deployment", §"Future work" |
+| 26 | Future research priorities | Main text, Discussion §"Future work" |
+| 27 | Funding, conflicts, and registration | Main text, Declarations
 
 ## C. Architecture detail
 

@@ -19,7 +19,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import pandas as pd
 
@@ -77,20 +77,48 @@ def get_hazard_category(record: dict) -> str:
 def run_client_on_dataset(
     client, dataset_name: str, records: list[dict], message_ids: list[str],
     run_id: str, architecture: str,
+    checkpoint_path: Optional[Path] = None,
+    checkpoint_every: int = 100,
 ) -> pd.DataFrame:
-    """Run an LLM client on all records in a dataset; return per-message DataFrame."""
-    rows = []
+    """Run an LLM client on all records; checkpoint partial progress.
+
+    If checkpoint_path is given, save progress every checkpoint_every messages.
+    On startup, if a checkpoint already exists, RESUME from where it stopped
+    (skip message_ids that already have predictions).
+
+    This makes Phase 6 LLM inference resumable across Modal function restarts /
+    timeouts / worker failures, eliminating wasted API spend on partial runs.
+    """
+    # Load existing predictions to determine which message_ids are done
+    done_ids = set()
+    existing_rows: list[dict] = []
+    if checkpoint_path and checkpoint_path.exists():
+        try:
+            existing_df = pd.read_csv(checkpoint_path)
+            existing_for_this_ds = existing_df[existing_df["dataset"] == dataset_name]
+            done_ids = set(existing_for_this_ds["message_id"].astype(str).tolist())
+            existing_rows = existing_df.to_dict(orient="records")
+            print(f"    RESUME: {len(done_ids)} predictions already in {checkpoint_path.name}; skipping those.")
+        except Exception as e:
+            print(f"    Could not load checkpoint ({e}); starting fresh.")
+
+    rows = list(existing_rows)
+    n_processed = 0
+    n_skipped = 0
     for i, r in enumerate(records):
+        mid = str(message_ids[i])
+        if mid in done_ids:
+            n_skipped += 1
+            continue
         text = get_test_text(r)
         try:
-            pred = client.predict(message_ids[i], text)
+            pred = client.predict(mid, text)
         except Exception as e:
-            # Defensive: log and skip; partial results still written below
             print(f"    [{i}/{len(records)}] {architecture}/{dataset_name} ERROR: {e}")
             continue
 
         rows.append({
-            "message_id": message_ids[i],
+            "message_id": mid,
             "dataset": dataset_name,
             "true_hazard": get_true_hazard(r),
             "true_action": get_true_action(r),
@@ -104,8 +132,17 @@ def run_client_on_dataset(
             "run_id": run_id,
             "inference_time_s": round(pred.inference_time_s, 4),
         })
-        if (i + 1) % 50 == 0:
-            print(f"    {i+1}/{len(records)} done")
+        n_processed += 1
+
+        # Periodic checkpoint
+        if checkpoint_path and (n_processed % checkpoint_every == 0):
+            pd.DataFrame(rows).to_csv(checkpoint_path, index=False)
+            print(f"    [checkpoint] {n_processed}/{len(records)-n_skipped} new, "
+                  f"{len(rows)} total — saved to {checkpoint_path.name}")
+        elif (n_processed) % 50 == 0:
+            print(f"    {n_processed}/{len(records)-n_skipped} done (this run); "
+                  f"{n_skipped} resumed from checkpoint")
+
     return pd.DataFrame(rows)
 
 
@@ -142,17 +179,23 @@ def run_llm_inference(
             print(f"  Unknown LLM architecture: {arch} — skipping")
             continue
 
+        out_path = predictions_dir / f"{arch}_{run_id}.csv"
         all_dfs = []
         for dataset_name, test_path in test_sets.items():
             records, mids = load_test_records(test_path)
             print(f"  {dataset_name}: n={len(records)} (using {arch})")
             t0 = time.time()
-            df = run_client_on_dataset(client, dataset_name, records, mids, run_id, arch)
-            print(f"    dataset done in {time.time() - t0:.0f}s, {len(df)} predictions")
+            df = run_client_on_dataset(
+                client, dataset_name, records, mids, run_id, arch,
+                checkpoint_path=out_path,   # write incrementally + resume
+                checkpoint_every=100,
+            )
+            print(f"    dataset done in {time.time() - t0:.0f}s, {len(df)} predictions in checkpoint")
             all_dfs.append(df)
 
-        combined = pd.concat(all_dfs, ignore_index=True)
-        out_path = predictions_dir / f"{arch}_{run_id}.csv"
+        combined = pd.concat(all_dfs, ignore_index=True).drop_duplicates(
+            subset=["message_id", "dataset"], keep="last"
+        )
         combined.to_csv(out_path, index=False)
         print(f"  → wrote {out_path} ({len(combined)} rows)")
         output_paths[arch] = out_path
