@@ -2,7 +2,7 @@
 
 This appendix accompanies the main manuscript titled "AI safety evaluation in an underrepresented Medicaid population: real-world performance of clinical decision support and frontier language models on patient messaging triage," submitted to BMC Medical Informatics and Decision Making (BMC MIDM).
 
-Every numerical value in this appendix renders from canonical CSVs at build time via `code/pipeline/manuscript_renderer.py`. No hand-typed numbers.
+Every numerical value in this appendix derives from the canonical per-message prediction files released as Multimedia Appendix 2.
 
 ---
 
@@ -103,7 +103,7 @@ The deployed production system uses 147 hand-crafted rules. The implementation r
 
 ### C.4b Safety-augmented system prompt (frontier large language model methodology)
 
-Frontier large language models (Claude Opus 4.7 and Gemini 3.1 Pro Preview) were evaluated with a safety-augmented system prompt that (a) describes the medical-triage-assistant role for a Medicaid managed care patient-messaging service, (b) explicitly directs the model to prioritize patient safety and err toward escalation in cases of ambiguity, (c) characterizes the patient population's typical communication patterns (low literacy, colloquialisms, abbreviations, implicit context), (d) enumerates representative hazard categories spanning cardiac, neurological, behavioral-health, substance-use, obstetric, and pediatric emergencies, and (e) specifies the 8-point action recommendation scale (Action 1 = self-care through Action 8 = emergency services). The output format is a structured JSON object containing a binary hazard flag, an action label, and a brief rationale. The full safety-augmented prompt and the default-prompt comparator are released in the code repository at `code/llm_clients/prompts.py`.
+Frontier large language models (Claude Opus 4.7 and Gemini 3.1 Pro Preview) were evaluated with a safety-augmented system prompt that (a) describes the medical-triage-assistant role for a Medicaid managed care patient-messaging service, (b) explicitly directs the model to prioritize patient safety and err toward escalation in cases of ambiguity, (c) characterizes the patient population's typical communication patterns (low literacy, colloquialisms, abbreviations, implicit context), (d) enumerates representative hazard categories spanning cardiac, neurological, behavioral-health, substance-use, obstetric, and pediatric emergencies, and (e) specifies the 8-point action recommendation scale (Action 1 = self-care through Action 8 = emergency services). The output format is a structured JSON object containing a binary hazard flag, an action label, and a brief rationale. The full safety-augmented prompt and the default-prompt comparator are released in the code repository.
 
 ### C.4c Closing-the-gap intervention methodology
 
@@ -153,11 +153,11 @@ The upstream calibrated detector applies temperature scaling on the validation s
 
 ### Table S5. Full pairwise McNemar matrix with Hochberg step-up correction.
 
-_[Full k = N×(N−1)/2 pairwise McNemar discordant-pair matrix among all evaluated architectures on the real-world test set, with chi-square statistics, raw two-sided p-values, and Hochberg step-up significance at α = 0.05. The complete matrix is released as `results/mcnemar_matrix.csv` in Multimedia Appendix 2.]_
+_[Full k = N×(N−1)/2 pairwise McNemar discordant-pair matrix among all evaluated architectures on the real-world test set, with chi-square statistics, raw two-sided p-values, and Hochberg step-up significance at α = 0.05. The complete matrix is released in Multimedia Appendix 2.]_
 
 ### Table S6. Calibrated operating-point thresholds per architecture.
 
-_[Per-architecture calibrated decision threshold selected on the training/validation split. The complete threshold map is released as `results/thresholds.json` in Multimedia Appendix 2.]_
+_[Per-architecture calibrated decision threshold selected on the training/validation split. The complete threshold map is released in Multimedia Appendix 2.]_
 
 ---
 
@@ -179,7 +179,7 @@ _[Per-hazard-category sensitivity for the architectures with the highest single-
 
 ## F. Per-message prediction release (Supplementary File 2)
 
-A separate ZIP archive (also archived at Zenodo, DOI {zenodo_doi}) contains one CSV per architecture × dataset, with the columns:
+Multimedia Appendix 2 (a separate ZIP archive submitted alongside this manuscript) contains one CSV per architecture × dataset, with the columns:
 
 ```
 message_id, dataset, true_hazard, true_action, hazard_category,

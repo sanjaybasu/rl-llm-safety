@@ -16,26 +16,6 @@
 
 ---
 
-<!--
-TEMPLATE NOTES (renderer skips HTML comments — these will not appear in output):
-
-Every $-style or brace placeholder in this template renders from
-results/metrics_canonical.csv, results/mcnemar_matrix.csv, or
-results/delta_bootstrap_canonical.csv at build time via
-code/manuscript_renderer.py. No hand-typed numbers anywhere.
-
-Placeholder schema examples (illustrated using $-prefix here so the renderer
-does not try to substitute them in the notes):
-  $metrics.realworld_n2000.cql_sens_opt.sensitivity      → 0.NNN
-  $metrics.realworld_n2000.cql_sens_opt.sensitivity_ci_lo → 0.NNN
-  $mcnemar.cql_sens_opt.claude_opus_4_7_safety.chi2      → N.NN
-  $delta.cql_sens_opt.sensitivity                         → ±NN pp
-  $n_total, $n_hazards, $n_benigns, $prevalence_pct       → from run_manifest
--->
-
-
----
-
 ## Abstract (target: 350 words structured)
 
 ### Background
@@ -52,7 +32,7 @@ A retrospective evaluation was conducted on {n_total} text messages submitted by
 
 ### Results
 
-The patient population differed substantially from prior clinical artificial intelligence evaluation cohorts. Messages averaged grade {grade_level_realworld} reading level (versus grade {grade_level_physician} in physician-scripted comparison scenarios), contained colloquialisms in {colloquialism_pct_realworld}% of messages (versus {colloquialism_pct_physician}%), and used abbreviations in {abbreviation_pct_realworld}% (versus {abbreviation_pct_physician}%). Hazard prevalence was {prevalence_pct}% ({n_hazards} hazards across {n_total} messages).
+The patient population had a distinctive linguistic profile compared with the physician-scripted comparison scenarios. Real-world messages were written at a substantially lower reading level (mean Flesch-Kincaid grade {grade_level_realworld} versus grade {grade_level_physician} in physician-scripted scenarios) and contained colloquialisms at substantially higher rates ({colloquialism_pct_realworld}% of real-world messages versus {colloquialism_pct_physician}% of physician scenarios). The rate of abbreviations ({abbreviation_pct_realworld}% versus {abbreviation_pct_physician}%) and implicit contextual references ({implicit_context_pct_realworld}% versus {implicit_context_pct_physician}%) was lower in real-world messages than in physician scenarios, reflecting that physician scenarios were written with deliberate use of medical shorthand and clinical context that the real-world Medicaid messaging population uses less frequently. Hazard prevalence was {prevalence_pct}% ({n_hazards} hazards across {n_total} messages).
 
 **No architecture evaluated in this study attained clinical-grade safety performance (sensitivity ≥ 0.80 AND specificity ≥ 0.80) for hazard detection on the real-world test set at any operating point on its receiver operating characteristic curve.** Across 213 ensemble configurations combining the nine architectures via hard-voting and soft-voting rules, none reached the clinical-grade target. The best balanced single-architecture operating point was XGBoost with sentence-BERT (sensitivity 0.594, specificity 0.592 at the closest-to-clinical-grade threshold); the best balanced ensemble was a hard-voting three-of-nine rule (sensitivity 0.667, specificity 0.609). Across 72 two-stage AND-rule cascade configurations, the cascade pairing the asymmetric-reward Conservative Q-Learning controller with the safety-augmented Claude Opus 4.7 large language model attained sensitivity 0.297 and specificity 0.874 — improving specificity at sensitivity cost, as expected. Action-recommendation appropriateness, paired-comparison statistics with Hochberg step-up correction across {k_pairs} pairwise tests, and equity-stratified sensitivity by sex and self-reported race/ethnicity are reported.
 
@@ -126,7 +106,7 @@ The study follows TRIPOD+AI [2] and DECIDE-AI [3] reporting guidelines. The comp
 
 All results derive from a single canonical pipeline run (run identifier {run_id}, conducted on {run_date}). Per-message predictions for every architecture × every test record are released as Supplementary File 2 (one CSV per architecture, containing the columns `message_id, dataset, true_hazard, true_action, hazard_category, pred_proba, pred_hazard, pred_action, threshold_used, architecture, model_version, run_id, inference_time_s`). Patient message text remains under HIPAA data-use agreement and is available to bona-fide researchers on request to the corresponding author. The released supplementary file is sufficient for any reviewer to independently verify receiver operating characteristic monotonicity, McNemar discordant-pair counts, paired bootstrap confidence intervals, and table-to-table arithmetic.
 
-The code repository (https://github.com/sanjaybasu/rl-llm-safety) contains the complete pipeline as deployed: a single Modal-orchestrated entry point (`modal_pipeline.py`) that, in one detached run, produces every per-message prediction file and every reported metric.
+The code repository at https://github.com/sanjaybasu/rl-llm-safety contains the complete pipeline as deployed: a single orchestrated entry point that, in one deterministic run, produces every per-message prediction file and every reported metric.
 
 ### Ethics and oversight
 
@@ -138,7 +118,7 @@ This study was conducted under the participating Medicaid managed care entity's 
 
 ### Population characteristics (Table 1)
 
-The {n_total} held-out test messages were submitted by {n_unique_patients} unique Medicaid patients during {study_period}. Hazard prevalence in the test set was {prevalence_pct}% ({n_hazards} hazards across {n_total} messages), with the remaining {n_benigns} messages adjudicated as benign by all three reviewing physicians. Population characteristics, including age, sex, and self-reported race/ethnicity, are reported in Table 1. The linguistic profile of the test set departed substantially from the profile of physician-scripted comparison scenarios: messages averaged grade {grade_level_realworld} reading level (versus grade {grade_level_physician} in scripted scenarios), contained colloquialisms in {colloquialism_pct_realworld}% of messages (versus {colloquialism_pct_physician}%), and contained abbreviations in {abbreviation_pct_realworld}% (versus {abbreviation_pct_physician}%). The presence of implicit context (clinical information present but not literally stated) was substantially higher in real-world messages than in scripted scenarios. The composition of hazard categories — including behavioral-health symptoms, substance-use escalation, obstetric concerns, pediatric overdose, and metabolic emergencies — reflects the natural case mix of a Medicaid managed care messaging service rather than the curated distribution of standardized benchmarks.
+The {n_total} held-out test messages were submitted by {n_unique_patients} unique Medicaid patients during {study_period}. Hazard prevalence in the test set was {prevalence_pct}% ({n_hazards} hazards across {n_total} messages), with the remaining {n_benigns} messages adjudicated as benign by all three reviewing physicians. Population characteristics, including age, sex, and self-reported race/ethnicity, are reported in Table 1. The linguistic profile of the test set departed substantially from the profile of physician-scripted comparison scenarios on two of four measured dimensions and in the opposite direction on the other two. Real-world messages were written at a substantially lower reading level than physician-scripted scenarios (mean Flesch-Kincaid grade {grade_level_realworld} versus {grade_level_physician}) and contained colloquialisms at substantially higher rates ({colloquialism_pct_realworld}% versus {colloquialism_pct_physician}%); the abbreviation rate ({abbreviation_pct_realworld}% versus {abbreviation_pct_physician}%) and the implicit-contextual-reference rate ({implicit_context_pct_realworld}% versus {implicit_context_pct_physician}%) were lower in the real-world Medicaid messaging population than in the physician-scripted scenarios, reflecting that physician scenarios were constructed with deliberate medical shorthand and inter-sentence clinical context that real-world Medicaid messages use less frequently. The composition of hazard categories — including behavioral-health symptoms, substance-use escalation, obstetric concerns, pediatric overdose, and metabolic emergencies — reflects the natural case mix of a Medicaid managed care messaging service rather than the curated distribution of standardized benchmarks.
 
 ### Hazard detection performance (Table 2)
 
@@ -190,9 +170,9 @@ The clinical-grade target (sensitivity ≥ 0.80 AND specificity ≥ 0.80) was no
 
 The principal finding of this study is that **no artificial intelligence architecture evaluated in this study — including supervised classifiers, decision-theoretic reinforcement learning controllers, and current-generation frontier large language models with safety-augmented prompts — attained clinical-grade safety performance (sensitivity ≥ 0.80 AND specificity ≥ 0.80) for hazard detection on the real-world Medicaid messaging population, at any operating point on any receiver operating characteristic curve, in any of 213 ensemble configurations evaluated, or in any of 72 two-stage AND-rule cascade configurations evaluated**. This is a structural finding, not a threshold-calibration artifact. The best balanced single-architecture operating point (XGBoost with sentence-BERT, sensitivity 0.594 and specificity 0.592 at the closest-to-clinical-grade threshold) and the best balanced ensemble operating point (hard-voting three-of-nine, sensitivity 0.667 and specificity 0.609) both fall substantially short of the conventional clinical-grade screening threshold used in established clinical computer-aided detection benchmarks (mammography, computed tomography pulmonary embolism detection, atrial fibrillation screening).
 
-This finding is specific to the population evaluated. Messages in this Medicaid managed care patient-messaging service averaged grade {grade_level_realworld} reading level (versus grade {grade_level_physician} in physician-scripted comparison scenarios), contained colloquialisms in {colloquialism_pct_realworld}% of messages (versus {colloquialism_pct_physician}%), and used abbreviations in {abbreviation_pct_realworld}% (versus {abbreviation_pct_physician}%). These population characteristics are precisely the characteristics that distinguish the patients who most depend on artificial intelligence-assisted triage — those whose access to in-person primary care is most constrained, whose health literacy is below population average, and whose communication patterns include colloquial and abbreviated text — from the populations on whom prior clinical artificial intelligence evaluation has been conducted. The safety characteristics established for clinical artificial intelligence on academic-medical-center cohorts and physician-scripted scenarios are demonstrated here not to transfer to this population.
+This finding is specific to the population evaluated. Messages in this Medicaid managed care patient-messaging service were written at substantially lower reading level than physician-scripted scenarios (mean grade {grade_level_realworld} versus {grade_level_physician}) and contained colloquialisms at substantially higher rates ({colloquialism_pct_realworld}% versus {colloquialism_pct_physician}%); abbreviation and implicit-contextual-reference rates were directionally lower in real-world messages than in physician scenarios. These linguistic differences, combined with the natural hazard-category mix of a Medicaid messaging service (described in Results), distinguish the patients who most depend on artificial intelligence-assisted triage from the populations on whom prior clinical artificial intelligence evaluation has been conducted. The safety characteristics established for clinical artificial intelligence on academic-medical-center cohorts and physician-scripted scenarios are demonstrated here not to transfer to this population.
 
-The harm asymmetry of clinical hazard detection — a missed hazard may cause irreversible patient harm, whereas a false alarm causes recoverable workflow burden — was reflected in the Conservative Q-Learning controller's asymmetric reward design (a 25-fold penalty on missed hazards relative to false alarms). This architectural commitment to sensitivity over specificity is the correct prior for safety-critical screening; it produces a natural first-stage screen in a cascaded workflow but does not, in itself, close the population gap. The patient population was characterized by lower reading-level text, high colloquialism and abbreviation density, substantial implicit context, multilingual communication patterns, and a hazard category distribution dominated by behavioral-health and substance-use scenarios rather than the cardiovascular and oncologic scenarios that dominate published benchmarks. These population characteristics are precisely the characteristics that distinguish the patients who most depend on messaging triage from the patients on whom prior evaluations were conducted. The architecture-level rank ordering, the absolute sensitivity attained, and the under-triage rates observed should therefore be interpreted as the safety profile of these architectures on the population they are most often deployed to serve.
+The harm asymmetry of clinical hazard detection — a missed hazard may cause irreversible patient harm, whereas a false alarm causes recoverable workflow burden — was reflected in the Conservative Q-Learning controller's asymmetric reward design (a 25-fold penalty on missed hazards relative to false alarms). This architectural commitment to sensitivity over specificity is the correct prior for safety-critical screening; it produces a natural first-stage screen in a cascaded workflow but does not, in itself, close the population gap. The architecture-level rank ordering, the absolute sensitivity attained, and the under-triage rates observed should be interpreted as the safety profile of these architectures on the population they are most often deployed to serve.
 
 ### Deployment-grade configurations are achievable under a clinician-augmented workflow
 
@@ -260,7 +240,7 @@ Not applicable. No patient-identifying information appears in the manuscript or 
 
 ### Availability of data and materials
 
-The per-message predictions for every architecture × every test record are released as Supplementary File 2 (also archived at Zenodo, DOI {zenodo_doi}). The code repository is at https://github.com/sanjaybasu/rl-llm-safety. Patient message text is governed by a HIPAA data-use agreement and is available to bona-fide researchers on request to the corresponding author. The released supplementary file contains all information required for independent re-derivation of every reported table, including receiver operating characteristic monotonicity verification, McNemar discordant-pair counts, paired bootstrap confidence intervals, and table-to-table arithmetic identities.
+The per-message predictions for every architecture × every test record are released as Multimedia Appendix 2. The code repository is at https://github.com/sanjaybasu/rl-llm-safety. Patient message text is governed by a HIPAA data-use agreement and is available to bona-fide researchers on request to the corresponding author. The released supplementary file contains all information required for independent re-derivation of every reported table, including receiver operating characteristic monotonicity verification, McNemar discordant-pair counts, paired bootstrap confidence intervals, and table-to-table arithmetic identities.
 
 ### Competing interests
 
@@ -272,7 +252,7 @@ None.
 
 ### Authors' contributions
 
-TBD at submission. All authors approved the final manuscript.
+SB conceived and designed the study, supervised the analytical pipeline, conducted the data analysis, and drafted the manuscript. SYP and PS contributed to the analytical pipeline design, the statistical analysis, and the methodological framing of the threshold-optimization and ensemble analyses. JM led clinical adjudication, contributed to hazard category definitions, and reviewed the clinical safety implications of the architectural findings. RB contributed to the deployment framing, the implications for clinical decision support oversight, and the research-agenda direction. All authors reviewed and approved the final manuscript.
 
 ### Acknowledgements
 

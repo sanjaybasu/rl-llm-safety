@@ -258,6 +258,10 @@ class TemplateRenderer:
 
     def render(self, template: str) -> tuple[str, list[str]]:
         """Substitute all {placeholder} tokens. Returns (rendered_text, unresolved_list)."""
+        # First, strip HTML comments — they are template-only annotations that
+        # must NOT appear in the rendered manuscript.
+        template = re.sub(r"<!--.*?-->\s*", "", template, flags=re.DOTALL)
+
         unresolved = []
         def replace(match: re.Match) -> str:
             placeholder = match.group(1)
