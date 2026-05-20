@@ -529,6 +529,148 @@ def render_table8_amc_stack(results_dir: Path, output_dir: Path) -> Path:
     return csv_path
 
 
+def render_table10_deployment_policies(results_dir: Path, output_dir: Path) -> Path:
+    """Table 10: side-by-side operating point + clinician workload for the two
+    actionable deployment policies vs the best single architecture, best ensemble,
+    and best cascade. Reviewers ask 'what do the numbers actually look like under
+    deployment?' — this table answers that, in alerts and missed hazards per 1000
+    messages.
+    """
+    csv_path = output_dir / "table10_deployment_policies.csv"
+    md_path = output_dir / "table10_deployment_policies.md"
+
+    N_HAZ = 165
+    N_BEN = 1835
+    N_TOTAL = N_HAZ + N_BEN
+
+    def from_sens_spec(label: str, sens: float, spec: float, note: str = "") -> dict:
+        tp = sens * N_HAZ; fp = (1 - spec) * N_BEN
+        fn = N_HAZ - tp; tn = N_BEN - fp
+        alerts_per_1000 = 1000 * (tp + fp) / N_TOTAL
+        misses_per_1000 = 1000 * fn / N_TOTAL
+        caught_per_1000 = 1000 * tp / N_TOTAL
+        ppv = tp / (tp + fp) if (tp + fp) else float("nan")
+        return {
+            "Configuration": label,
+            "Sensitivity": f"{sens:.3f}",
+            "Specificity": f"{spec:.3f}",
+            "PPV": f"{ppv:.3f}",
+            "Alerts per 1,000 messages (clinician review load)": f"{alerts_per_1000:.0f}",
+            "Hazards caught per 1,000 messages": f"{caught_per_1000:.1f}",
+            "Hazards missed per 1,000 messages": f"{misses_per_1000:.1f}",
+            "Note": note,
+        }
+
+    rows = []
+
+    # --- Single-architecture references (default thresholds) ---
+    m_path = results_dir / "metrics_canonical.csv"
+    if m_path.exists():
+        m = pd.read_csv(m_path)
+        rw = m[m["dataset"] == "realworld_n2000"]
+        # Best balanced (highest min(sens, spec)) single architecture
+        if not rw.empty:
+            rw = rw.copy()
+            rw["balanced"] = rw[["sensitivity", "specificity"]].min(axis=1)
+            top_bal = rw.loc[rw["balanced"].idxmax()]
+            rows.append(from_sens_spec(
+                f"Best balanced single architecture ({ARCH_DISPLAY.get(top_bal['architecture'], top_bal['architecture'])})",
+                float(top_bal["sensitivity"]),
+                float(top_bal["specificity"]),
+                "default threshold; baseline reference",
+            ))
+            # Best single-architecture sensitivity (the high-recall reference)
+            top_sens = rw.loc[rw["sensitivity"].idxmax()]
+            rows.append(from_sens_spec(
+                f"Highest-sensitivity single architecture ({ARCH_DISPLAY.get(top_sens['architecture'], top_sens['architecture'])})",
+                float(top_sens["sensitivity"]),
+                float(top_sens["specificity"]),
+                "default threshold; reference for sens-floor analysis",
+            ))
+
+    # --- Best ensemble (balanced) ---
+    en_path = results_dir / "ensemble_results.csv"
+    if en_path.exists():
+        en = pd.read_csv(en_path)
+        if not en.empty:
+            en = en.copy()
+            en["balanced"] = en[["sensitivity", "specificity"]].min(axis=1)
+            top = en.loc[en["balanced"].idxmax()]
+            rows.append(from_sens_spec(
+                f"Best balanced ensemble ({top['rule']})",
+                float(top["sensitivity"]),
+                float(top["specificity"]),
+                "hard- or soft-voting; reference for ensemble closing-the-gap finding",
+            ))
+
+    # --- Best cascade (balanced) ---
+    cas_path = results_dir / "cascade_matrix.csv"
+    if cas_path.exists():
+        cas = pd.read_csv(cas_path)
+        rw_cas = cas[(cas["dataset"] == "realworld_n2000") & (cas["stage1"] < cas["stage2"])].copy()
+        if not rw_cas.empty:
+            rw_cas["balanced"] = rw_cas[["sensitivity", "specificity"]].min(axis=1)
+            top = rw_cas.loc[rw_cas["balanced"].idxmax()]
+            rows.append(from_sens_spec(
+                f"Best balanced cascade ({ARCH_DISPLAY.get(top['stage1'], top['stage1'])} × {ARCH_DISPLAY.get(top['stage2'], top['stage2'])})",
+                float(top["sensitivity"]),
+                float(top["specificity"]),
+                "two-stage AND-rule; reference for cascade closing-the-gap finding",
+            ))
+
+    # --- Policy A: sens-floor 0.85 winning configuration ---
+    sf_path = results_dir / "deployment_grade_sens_floor.csv"
+    if sf_path.exists():
+        sf = pd.read_csv(sf_path)
+        floor_85 = sf[sf["sens_floor"] == 0.85]
+        if not floor_85.empty:
+            r = floor_85.iloc[0]
+            if pd.notna(r["max_specificity"]):
+                rows.append(from_sens_spec(
+                    f"**Policy A** — high-recall screen ({r['winning_label']})",
+                    float(r["winning_sensitivity"]),
+                    float(r["max_specificity"]),
+                    "sens >= 0.85 floor; ALL flagged messages → clinician confirmation queue",
+                ))
+
+    # --- Policy B: disagreement-stratified 2+ flagging ---
+    ag_path = results_dir / "deployment_grade_agreement.csv"
+    if ag_path.exists():
+        ag = pd.read_csv(ag_path)
+        # Sum hazards/benigns across strata where policy is clinician_review or escalate
+        review_strata = ag[ag["policy"].isin(["clinician_review", "escalate"])]
+        autonomous_benign = ag[ag["policy"] == "no_action"]
+        if not review_strata.empty:
+            tp_b = int(review_strata["n_hazards"].sum())
+            fp_b = int(review_strata["n_benigns"].sum())
+            fn_b = int(autonomous_benign["n_hazards"].sum()) if not autonomous_benign.empty else 0
+            tn_b = int(autonomous_benign["n_benigns"].sum()) if not autonomous_benign.empty else 0
+            sens_b = tp_b / (tp_b + fn_b) if (tp_b + fn_b) else float("nan")
+            spec_b = tn_b / (tn_b + fp_b) if (tn_b + fp_b) else float("nan")
+            rows.append(from_sens_spec(
+                "**Policy B** — disagreement-stratified triage (≥2 of 10 architectures flag → clinician review)",
+                sens_b, spec_b,
+                "0-1 flagging → autonomous benign; 2+ → clinician review; 7+ → autonomous escalation",
+            ))
+
+    # Reference: clinical-grade target
+    rows.insert(0, {
+        "Configuration": "**Clinical-grade target (autonomous deployment)**",
+        "Sensitivity": "≥ 0.800",
+        "Specificity": "≥ 0.800",
+        "PPV": "—",
+        "Alerts per 1,000 messages (clinician review load)": "—",
+        "Hazards caught per 1,000 messages": "—",
+        "Hazards missed per 1,000 messages": "≤ 16.5",
+        "Note": "Clinical CAD/CDS benchmark (mammography, CT PE)",
+    })
+
+    out_df = pd.DataFrame(rows)
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
 def render_table9_deployment_grade(results_dir: Path, output_dir: Path) -> Path:
     """Table 9: deployment-grade sensitivity-floor analysis + disagreement-stratified workflow."""
     sf_path = results_dir / "deployment_grade_sens_floor.csv"
@@ -826,6 +968,9 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     print("[render] Table 9 (deployment-grade)")
     out["table9"] = render_table9_deployment_grade(results_dir, tables_dir)
     print(f"  → {out['table9']}")
+    print("[render] Table 10 (deployment policies side-by-side)")
+    out["table10"] = render_table10_deployment_policies(results_dir, tables_dir)
+    print(f"  → {out['table10']}")
     print("[render] Table S1 (physician holdout)")
     out["tableS1"] = render_tableS1_physician_metrics(metrics_df, tables_dir)
     print(f"  → {out['tableS1']}")

@@ -97,6 +97,7 @@ class TemplateRenderer:
         "table7_closing_the_gap_block": "tables/table7_closing_the_gap.md",
         "table8_amc_guardrail_stack_block": "tables/table8_amc_guardrail_stack.md",
         "table9_deployment_grade_block": "tables/table9_deployment_grade.md",
+        "table10_deployment_policies_block": "tables/table10_deployment_policies.md",
         "tableS1_physician_holdout_block": "tables/tableS1_physician_holdout_metrics.md",
         "tableS2_delta_bootstrap_block": "tables/tableS2_delta_bootstrap.md",
         "tableS3_cascade_full_block": "tables/tableS3_cascade_full.md",
