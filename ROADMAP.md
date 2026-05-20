@@ -16,12 +16,15 @@ Resubmit the JMIR-rejected manuscript (decision E2, 2026-05-14) to **BMC Medical
 
 | Phase | Status | Output |
 |---|---|---|
-| **A. Literature review** | ✅ Complete | `notebooks/rl_vs_llm_safety_v3/lit_review/evidence_map.md` (16 verified citations + gap claim) |
+| **A. Literature review (initial)** | ✅ Complete | `notebooks/rl_vs_llm_safety_v3/lit_review/evidence_map.md` (16 verified citations + gap claim) |
 | **B. Design lock** | ✅ Complete | `notebooks/rl_vs_llm_safety_v3/protocol/protocol.md` (6-config matrix, TRIPOD+AI + DECIDE-AI) |
 | **C. Pipeline execution** | ✅ Complete | Modal volume `rl-llm-safety-v3-predictions:canonical/*_3158b720*.csv` (9 architectures × 2 datasets = 18,369 predictions) |
-| **C.5 Manuscript rendering** | ✅ Complete | `results_modal_pull/drafts/{main_text,cover_letter,appendix}.md` + `supplementary/multimedia_appendix_2.zip` |
+| **C.5 Manuscript rendering** | ✅ Complete | Drafts on Modal volume + local `notebooks/rl_vs_llm_safety_v3/drafts/` |
 | **D. Audit + concordance** | ✅ Complete | All 9 strict concordance checks pass with 0 errors, 0 warnings |
-| **E. Submission** | ⏳ Pending | Cold-read → fill author byline → upload to BMC MIDM portal |
+| **D.5 Cascade + threshold + ensemble + multi-LLM analyses** | ✅ Complete | Tables 5, 6, 7 + `cascade_matrix.csv`, `threshold_optimized.csv`, `ensemble_results.csv`, `multi_llm_consensus.csv` |
+| **D.6 Closing-the-gap lit review** | ✅ Complete | `notebooks/rl_vs_llm_safety_v3/lit_review/closing_the_gap.md` (1,920 words) |
+| **D.7 RAG (k-NN over training set)** | 🟡 In flight (Modal) | `claude_opus_4_7_rag_3158b720*.csv` on Modal volume; ETA ~9-12h |
+| **E. Submission** | ⏳ Pending RAG completion + final cold-read | Cold-read → upload to BMC MIDM portal |
 
 ---
 
@@ -172,6 +175,12 @@ Local monitor `b5a1tbj4a` will keep watching but its job is done.
 | 2026-05-19 | **STRUCTURAL FINDING confirmed.** Threshold analysis: 0/6 architectures reach sens>=0.80 AND spec>=0.80 at any ROC operating point (best balanced: XGBoost sens 0.594 / spec 0.592). Ensemble analysis (`ensemble_analysis.py`): 0/213 ensemble configurations (hard-voting k-of-9, soft-voting unweighted + F1-weighted across 101 thresholds, top-3 AND/OR) reach clinical-grade (best balanced: hard-voting 3-of-9 with sens 0.667 / spec 0.609). Combined with prior cascade analysis: 0/72 cascade pairs also short of clinical-grade. |
 | 2026-05-19 | **Manuscript reframed** around the clinical-grade-not-met headline. Tables 5 (cascade Pareto), 6 (threshold optimization) added. Discussion §Principal findings explicitly states the structural finding. Future Work expanded to a structured 5-direction research agenda + 2 cross-cutting priorities for closing the gap. (`dd52620`) |
 | 2026-05-19 | Scope expansion per user direction: instead of just characterizing the gap, attempt to close it via latest 2024-2026 approaches (few-shot in-context learning, RAG over training set, domain-adapted small LLM fine-tuning, multi-LLM consensus). Lit review agent dispatched (a42f833852632b61b) to identify top 2-3 experiments worth running overnight. |
+| 2026-05-19 | Lit review complete (`closing_the_gap.md`, 1,920 words). Top recommendations: (1) k-NN RAG over labeled training set [Stanford RAEC PSB 2026, Liu JAMIA 2025, RECTIFIER NEJM AI 2024 all converge; expected lift +0.10-0.20 sens]; (2) Llama-3.1-8B QLoRA SFT [Losch arXiv 2503.21349]; (3) Multi-LLM voting [cautionary: blood-culture study found majority vote drove sens to 0%]. **Critical skeptical finding: no verified 2024-2026 paper demonstrates sens≥0.80 AND spec≥0.80 for free-text hazard detection on Medicaid/low-literacy populations — the literature ceiling supports our empirical result.** |
+| 2026-05-19 | Multi-LLM consensus implemented + run on existing data (4 rules: Claude only, Gemini only, OR, AND). 0/4 reach clinical-grade — confirms lit review's cautionary prediction. OR-rule (sens 0.297, spec 0.869) virtually identical to Claude alone. (`efc16eb`) |
+| 2026-05-19 | RAG client implemented (`code/llm_clients/rag.py`) with sentence-BERT k-NN retrieval over 1,280 training examples; stratified top-8 (at least 2 hazards + 2 benigns when available). Few-shot client also built (`code/llm_clients/few_shot.py`) with 20 curated training-set exemplars. Phase 6 supports `claude_opus_4_7_rag` and `claude_opus_4_7_fewshot` architectures. (`efc16eb`) |
+| 2026-05-19 | Table 7 added: closing-the-gap synthesis showing best operating point under each strategy (single architecture default + threshold-optimized, ensemble, cascade, multi-LLM, RAG). At-a-glance reviewer answer: 0/N strategies reach clinical-grade. (`9d12e30`) |
+| 2026-05-19 | RAG launched detached on Modal (`ap-NeCvkVtRrpfTWflAzX2vUd`); monitor `b4cv3wod3` armed. Expected ~9-12h wall-clock; will fire `[RAG-EXIT]` event when complete. After completion: re-run Phase 13 to integrate RAG into Tables 2, 7; pull drafts; re-audit; commit. |
+| 2026-05-19 | Appendix C.4c documents closing-the-gap intervention methodology; Phase 13 (Modal) now invokes ensemble + multi-LLM analyses alongside cascade + threshold. All 9 strict comprehensive concordance checks pass with 0 errors. (`6476999`) |
 
 ---
 
