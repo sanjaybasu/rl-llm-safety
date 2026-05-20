@@ -1,9 +1,11 @@
 {
-  "actionhead": 4.0,
-  "constellation": 0.9654771697621676,
-  "cql_reward_opt": 0.032258064516129,
-  "cql_sens_opt": 0.9999979196809607,
-  "guardrails": 0.6475273969560021,
   "logreg_tfidf": 0.2873150097987011,
-  "xgboost_sbert": 0.1525556445121765
+  "xgboost_sbert": 0.1525556445121765,
+  "constellation": 0.9654771697621676,
+  "guardrails": 0.6475273969560021,
+  "cql_sens_opt": 0.9999979196809607,
+  "cql_reward_opt": 0.032258064516129,
+  "actionhead": 4.0,
+  "gemini_3_1_pro_safety": 0.5,
+  "claude_opus_4_7_safety": 0.5
 }
