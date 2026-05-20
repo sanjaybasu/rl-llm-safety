@@ -9,4 +9,3 @@
 | ActionHead (action recommender) | +1.7 (-18.7 to +21.4) | +8.8 (-13.2 to +31.9) | 0.407 | 0.424 |
 | Gemini 3.1 Pro (safety-augmented) | -27.8 (-45.7 to -11.8) | +13.7 (-0.7 to +35.2) | 0.296 | 0.018 |
 | Claude Opus 4.7 (safety-augmented) | -51.8 (-67.1 to -34.5) | +29.9 (+6.9 to +58.0) | 0.815 | 0.297 |
-| claude_opus_4_7_rag | -78.2 (-84.2 to -71.5) | +34.6 (+11.3 to +62.8) | 1.000 | 0.218 |

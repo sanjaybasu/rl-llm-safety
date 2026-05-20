@@ -34,8 +34,8 @@ TRIPOD+AI; DECIDE-AI
 
 ## Word counts
 
-Manuscript main text: approximately 5,500 words (Introduction through Conclusions, excluding references, tables, and figure captions).
-Abstract: approximately 350 words, structured (Background / Objective / Methods / Results / Conclusions).
+Manuscript main text: approximately 6,200 words (Introduction through Conclusions, excluding references, tables, and figure captions).
+Abstract: approximately 380 words, structured (Background / Objective / Methods / Results / Conclusions).
 
 ## Authors' contributions
 

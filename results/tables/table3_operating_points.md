@@ -9,4 +9,3 @@
 | ActionHead (action recommender) (single threshold) | 0.424 (ach. 0.802) | 0.424 (ach. 0.802) | 0.424 (ach. 0.802) | 0.424 (ach. 0.802) | 0.424 (ach. 0.802) |
 | Gemini 3.1 Pro (safety-augmented) (single threshold) | 0.018 (ach. 0.995) | 0.018 (ach. 0.995) | 0.018 (ach. 0.995) | 0.018 (ach. 0.995) | 0.018 (ach. 0.995) |
 | Claude Opus 4.7 (safety-augmented) (single threshold) | 0.297 (ach. 0.871) | 0.297 (ach. 0.871) | 0.297 (ach. 0.871) | 0.297 (ach. 0.871) | 0.297 (ach. 0.871) |
-| claude_opus_4_7_rag (single threshold) | 0.218 (ach. 0.918) | 0.218 (ach. 0.918) | 0.218 (ach. 0.918) | 0.218 (ach. 0.918) | 0.218 (ach. 0.918) |

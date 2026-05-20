@@ -3,6 +3,8 @@ predictions/canonical/
 predictions/canonical_partial/
 predictions/canonical_filtered/
 predictions/run_manifest.json
+results/predictions_filtered/
+results/supplementary/multimedia_appendix_2.zip
 
 # Temporary partial outputs (may contain per-message data)
 results_partial/
@@ -10,6 +12,9 @@ results_modal_pull/
 
 # Per-message failure mode CSV may contain message_ids — keep local only
 results/failure_mode_per_message.csv
+
+# Rendered draft outputs (regenerated each render from templates + canonical CSVs)
+results/drafts/
 
 # Python
 __pycache__/
