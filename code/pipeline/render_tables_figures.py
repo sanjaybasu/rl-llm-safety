@@ -390,6 +390,37 @@ def render_table5_cascade_pareto(results_dir: Path, output_dir: Path) -> Path:
     return csv_path
 
 
+def render_tableS4_category_stratification(results_dir: Path, output_dir: Path) -> Path:
+    """Table S4: per-architecture sensitivity by hazard category on the real-world test set."""
+    cs_path = results_dir / "category_stratification.csv"
+    csv_path = output_dir / "tableS4_category_stratification.csv"
+    md_path = output_dir / "tableS4_category_stratification.md"
+    if not cs_path.exists():
+        pd.DataFrame().to_csv(csv_path, index=False)
+        md_path.write_text("_[Table S4 not yet rendered — category_stratification.csv missing]_\n")
+        return csv_path
+    cs = pd.read_csv(cs_path)
+    if cs.empty:
+        pd.DataFrame().to_csv(csv_path, index=False)
+        md_path.write_text("_[Table S4 not yet rendered — empty stratification]_\n")
+        return csv_path
+    pivot = cs.pivot_table(index="hazard_category", columns="architecture",
+                            values="sensitivity", aggfunc="first").round(3)
+    # Order columns by mean across categories (descending = best-performing first)
+    col_means = pivot.mean(axis=0).sort_values(ascending=False)
+    pivot = pivot[col_means.index]
+    # Use display labels
+    pivot.columns = [ARCH_DISPLAY.get(c, c) for c in pivot.columns]
+    # Add a column with n_hazards per category
+    n_per_cat = cs.groupby("hazard_category")["n_hazards"].first()
+    pivot.insert(0, "n hazards", n_per_cat)
+    # Add a row with mean sensitivity per architecture across categories
+    out_df = pivot.reset_index()
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
 def render_table7_closing_the_gap(results_dir: Path, output_dir: Path) -> Path:
     """Table 7: best operating point under each closing-the-gap strategy.
 
@@ -632,6 +663,9 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     print("[render] Table S3 (full cascade matrix)")
     out["tableS3"] = render_tableS3_cascade_full(results_dir, tables_dir)
     print(f"  → {out['tableS3']}")
+    print("[render] Table S4 (category stratification)")
+    out["tableS4"] = render_tableS4_category_stratification(results_dir, tables_dir)
+    print(f"  → {out['tableS4']}")
     print("[render] Figure 1 (Δ sens chart)")
     out["figure1"] = render_figure1_sens_change(delta_df, figures_dir)
     print(f"  → {out['figure1']}")

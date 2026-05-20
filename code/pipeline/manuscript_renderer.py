@@ -98,6 +98,7 @@ class TemplateRenderer:
         "tableS1_physician_holdout_block": "tables/tableS1_physician_holdout_metrics.md",
         "tableS2_delta_bootstrap_block": "tables/tableS2_delta_bootstrap.md",
         "tableS3_cascade_full_block": "tables/tableS3_cascade_full.md",
+        "tableS4_category_stratification_block": "tables/tableS4_category_stratification.md",
         "figure1_caption_block": None,  # figure binary lives at figures/figure1_sens_spec_change.png
         "figure2_caption_block": None,
     }

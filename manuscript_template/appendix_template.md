@@ -145,9 +145,11 @@ The upstream calibrated detector applies temperature scaling on the validation s
 
 *Caption: All 72 (Stage 1, Stage 2) two-stage AND-rule cascade configurations evaluated on the {n_total}-message real-world test set. The Pareto frontier subset is highlighted in Table 5 of the main text. Sensitivity and specificity are reported as point estimates; full confidence intervals are available in the released supplementary CSV.*
 
-### Table S4. Equity-stratified sensitivity by self-reported demographics.
+### Table S4. Per-architecture sensitivity by hazard category on the real-world test set.
 
-_[Equity-stratified analysis: sex-stratified and race-stratified sensitivity with Wilson 95% confidence intervals and equalized odds differences, reported for each architecture. This table is reserved for the demographic stratification analysis. Demographic data availability and stratification methodology are described in Methods §"Outcomes" and §"Statistical analysis".]_
+{tableS4_category_stratification_block}
+
+*Caption: Sensitivity stratified by physician-adjudicated hazard category, restricted to categories with at least three adjudicated hazards in the real-world test set. Categories are ordered by row index; architecture columns are ordered by mean sensitivity across categories. The 'other_hazard' category includes hazards not falling into the named clinical categories and accounts for the majority of test-set hazards by count, reflecting the natural case mix of a Medicaid managed care messaging service. Behavioral suicidality is the highest-sensitivity category across architectures; the 'other_hazard' residual is the lowest-sensitivity category, indicating that the architectures' performance is best on the most prototypically presented hazard categories and worst on the heterogeneous remainder.*
 
 ### Table S5. Full pairwise McNemar matrix with Hochberg step-up correction.
 

@@ -782,6 +782,18 @@ def phase13_render_manuscript(run_id: str) -> dict:
     except Exception as e:
         print(f"    Multi-LLM consensus skipped ({e})")
 
+    # 2b.5 Hazard-category stratification — produces category_stratification.csv,
+    # consumed by render_tables_figures (Table S4).
+    print(f"  [2b.5/5] Hazard-category stratification...")
+    try:
+        subprocess.run([
+            "python3", f"{pipeline}/category_stratification.py",
+            "--predictions-dir", str(filtered_dir),
+            "--results-dir", str(results_dir),
+        ], check=True)
+    except Exception as e:
+        print(f"    Category stratification skipped ({e})")
+
     # 2c. Re-render tables/figures so Tables 5 + S3 (cascade) are included.
     # The render_tables_figures CLI already ran during Phase 12 against the
     # un-filtered predictions volume; re-run here against the filtered set so
