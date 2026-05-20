@@ -3,13 +3,17 @@ predictions/
 results/predictions_filtered/
 
 # Public repo policy: code only. No manuscript drafts, no derived results,
-# no tables, no figures, no appendix, no submission bundles. The published
-# paper and its supplementary materials live with the journal; this repo
-# carries only the code needed to reproduce the analysis from the source data.
+# no tables, no figures, no appendix, no submission bundles, no internal
+# project notes. The published paper and its supplementary materials live
+# with the journal; this repo carries only the code needed to reproduce
+# the analysis from the source data.
 manuscript_template/
 results/
 docx/
 supplementary/
+LESSONS_LEARNED.md
+RESUME_AFTER_OUTAGE.md
+ROADMAP.md
 
 # Temporary partial outputs
 results_partial/

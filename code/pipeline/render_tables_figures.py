@@ -293,7 +293,7 @@ def render_figure3_pareto_frontier(results_dir: Path, output_dir: Path) -> Path:
     the target zone — the structural finding of the paper.
     """
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(8, 7))
+    fig, ax = plt.subplots(figsize=(9, 7))
 
     # Shade clinical-grade target region (top-right quadrant ≥0.80, ≥0.80)
     ax.axhspan(0.80, 1.0, xmin=0.80, xmax=1.0, color="green", alpha=0.10, zorder=0)
@@ -302,57 +302,71 @@ def render_figure3_pareto_frontier(results_dir: Path, output_dir: Path) -> Path:
     ax.text(0.85, 0.92, "Clinical-grade\ntarget zone", fontsize=10,
             color="darkgreen", ha="left", va="center", alpha=0.8)
 
-    # Single-architecture default-threshold points (no per-point labels to avoid overlap;
-    # architectures are identified in legend + Table 2)
+    n_single = n_cascade = n_hard = n_soft = n_consensus = 0
+
+    # Single-architecture default-threshold points
     m_path = results_dir / "metrics_canonical.csv"
     if m_path.exists():
         m = pd.read_csv(m_path)
         rw = m[m["dataset"] == "realworld_n2000"]
+        n_single = len(rw)
         ax.scatter(rw["specificity"], rw["sensitivity"], s=80, marker="o",
-                   color="steelblue", alpha=0.8, label="Single architecture (default threshold)", zorder=3)
+                   color="steelblue", alpha=0.8,
+                   label=f"Single architecture, default threshold (n={n_single})", zorder=3)
 
     # Cascade Pareto frontier (highlight in different color)
     pf_path = results_dir / "cascade_pareto.csv"
     if pf_path.exists():
         pf = pd.read_csv(pf_path)
         pf = pf[pf["stage1"] < pf["stage2"]]  # dedupe symmetric pairs
+        n_cascade = len(pf)
         ax.scatter(pf["specificity"], pf["sensitivity"], s=50, marker="s",
-                   color="darkorange", alpha=0.7, label="Two-stage cascade (Pareto frontier)", zorder=3)
+                   color="darkorange", alpha=0.7,
+                   label=f"Two-stage cascade, Pareto frontier (n={n_cascade})", zorder=3)
 
     # Ensemble best balanced points
     en_path = results_dir / "ensemble_results.csv"
     if en_path.exists():
         en = pd.read_csv(en_path)
-        # Only plot hard voting + selected soft voting best
         hv = en[en["rule"].str.startswith("hard_")]
+        n_hard = len(hv)
         ax.scatter(hv["specificity"], hv["sensitivity"], s=50, marker="^",
-                   color="purple", alpha=0.7, label="Hard-voting ensemble (k-of-9)", zorder=3)
-        # Best soft-voting point
+                   color="purple", alpha=0.7,
+                   label=f"Hard-voting ensemble, k-of-9 for k=1..9 (n={n_hard})", zorder=3)
         soft = en[en["rule"].str.startswith("soft_")]
         if not soft.empty:
             soft = soft.copy()
             soft["balanced"] = soft[["sensitivity", "specificity"]].min(axis=1)
             best_soft = soft.loc[soft["balanced"].idxmax()]
-            ax.scatter([best_soft["specificity"]], [best_soft["sensitivity"]], s=120,
-                       marker="*", color="goldenrod", alpha=0.9,
-                       label="Best soft-voting ensemble", zorder=4)
+            n_soft = 1
+            ax.scatter([best_soft["specificity"]], [best_soft["sensitivity"]], s=160,
+                       marker="*", color="goldenrod", alpha=0.95, edgecolor="black", linewidth=0.5,
+                       label="Best soft-voting ensemble (n=1)", zorder=5)
 
     # Multi-LLM consensus rules
     ml_path = results_dir / "multi_llm_consensus.csv"
     if ml_path.exists():
         ml = pd.read_csv(ml_path)
-        # Skip the single-LLM-only rules (already in single-architecture points)
         consensus = ml[ml["rule"].str.contains("rule_")]
+        n_consensus = len(consensus)
         ax.scatter(consensus["specificity"], consensus["sensitivity"], s=80,
                    marker="D", color="crimson", alpha=0.8,
-                   label="Multi-LLM consensus rule", zorder=3)
+                   label=f"Multi-LLM consensus rule (n={n_consensus})", zorder=3)
 
     ax.set_xlabel("Specificity")
     ax.set_ylabel("Sensitivity")
     ax.set_xlim(-0.02, 1.02)
     ax.set_ylim(-0.02, 1.02)
-    ax.set_title("Receiver operating characteristic envelope: all strategies\nNo strategy reaches the clinical-grade target zone (top-right)")
-    ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
+    total = n_single + n_cascade + n_hard + n_soft + n_consensus
+    ax.set_title(
+        f"Receiver operating characteristic envelope: {total} configurations across 5 strategy classes\n"
+        f"No configuration reaches the clinical-grade target zone (top-right)"
+    )
+    # Move legend OUTSIDE the plot to avoid covering data points in the upper-left
+    # (where high-recall low-precision architectures like LogReg+TF-IDF and the
+    # reward-optimized CQL controller live).
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=9,
+              framealpha=1.0, borderaxespad=0)
     ax.grid(True, alpha=0.3)
     out_path = output_dir / "figure3_pareto_frontier.png"
     plt.tight_layout()
