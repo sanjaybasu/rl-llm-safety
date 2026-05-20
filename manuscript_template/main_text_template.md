@@ -1,6 +1,16 @@
 # AI safety evaluation in an underrepresented population: real-world performance of clinical decision support and frontier language models on Medicaid patient messaging triage
 
-**Authors**: TBD
+**Authors**: Sanjay Basu, MD, PhD¹,²; Sadiq Y. Patel, MSW, PhD³; Parth Sheth, MSE³; Bernardo Arevalo, [degree TBD]²; John Morgan, MD⁴; Rajaie Batniji, MD, PhD²,⁵
+
+**Affiliations**:
+¹ University of California, San Francisco, San Francisco, CA, USA
+² Waymark, San Francisco, CA, USA
+³ University of Pennsylvania, Philadelphia, PA, USA
+⁴ Virginia Commonwealth University, Richmond, VA, USA
+⁵ Stanford University, Stanford, CA, USA
+
+**Corresponding Author**: Sanjay Basu, MD, PhD; University of California San Francisco and Waymark; 2021 Fillmore St, San Francisco, CA 94115; sanjay.basu@waymarkcare.com
+
 **Target journal**: BMC Medical Informatics and Decision Making
 **Reporting framework**: TRIPOD+AI [2] + DECIDE-AI [3]
 
@@ -150,13 +160,21 @@ Table 4 reports the per-architecture proportion of recommendations classified as
 
 Sensitivity stratified by sex and by self-reported race/ethnicity is reported with Wilson 95% confidence intervals [17] within each subgroup, with the equalized odds difference (maximum minus minimum subgroup sensitivity) reported per architecture. Subgroups with fewer than 30 hazard-positive cases are flagged as insufficiently powered for reliable subgroup inference and are reported with explicit small-sample warnings rather than suppressed.
 
+### Cascade architectures for deployment-realistic operating points (Table 5)
+
+No single-architecture configuration in the evaluated matrix attained a deployable operating point on the real-world Medicaid messaging population: the architectures with the highest sensitivity (logistic regression with TF-IDF features and the Conservative Q-Learning controller in its reward-optimized configuration) flagged the majority of messages as hazards, with positive predictive value below 0.10; the architectures with the highest specificity (rule-based guardrails, the constellation classifier, and the safety-augmented frontier large language models) flagged fewer than 7% of true hazards. This pattern is the standard motivation for cascade architectures in clinical computer-aided detection and decision support — a high-recall first-stage screen forwards candidate positives to a high-precision second-stage confirmation, with the final positive decision requiring concordance from both stages.
+
+Table 5 reports the receiver operating characteristic of all 72 two-stage AND-rule cascade configurations on the real-world test set, with the configurations on the Pareto frontier highlighted. The cascade design that pairs the Conservative Q-Learning controller (reward-optimized; the asymmetric-reward design produces a natural first-stage screen by penalizing missed hazards 25-fold relative to false alarms) with the safety-augmented Claude Opus 4.7 (the highest-specificity frontier large language model in the matrix) attained sensitivity 0.297 (95% CI 0.226–0.379) and specificity 0.874 (95% CI 0.858–0.887) — a substantially more favorable operating point than either component alone. The cascade pairing the supervised action recommender (ActionHead) with the logistic regression first-stage screen attained the highest F1 in the matrix (F1 0.236) and the highest Matthews correlation coefficient (MCC 0.154) of any cascade with sensitivity above 0.40. These cascade configurations represent the deployment-realistic operating points that the single-architecture evaluation alone does not surface.
+
+The interpretation is that no single artificial intelligence architecture currently characterized on the real-world Medicaid messaging population is deployable in isolation; deployment requires a two-stage workflow with a first-stage screen optimized for recall and a second-stage filter optimized for precision. The asymmetric-reward Conservative Q-Learning controller, by virtue of its reward design, is a natural first-stage screen — its low specificity in isolation is an architectural feature for this role rather than a defect.
+
 ---
 
 ## Discussion
 
 ### Principal findings
 
-The principal finding of this study is that clinical artificial intelligence safety performance, measured on a Medicaid messaging triage population with linguistic and clinical characteristics substantially divergent from those of conventional clinical artificial intelligence benchmarks, differs from the safety performance previously reported for the same architectural families on academic-medical-center and standardized-patient populations. The patient population was characterized by lower reading-level text, high colloquialism and abbreviation density, substantial implicit context, multilingual communication patterns, and a hazard category distribution dominated by behavioral-health and substance-use scenarios rather than the cardiovascular and oncologic scenarios that dominate published benchmarks. These population characteristics are precisely the characteristics that distinguish the patients who most depend on messaging triage from the patients on whom prior evaluations were conducted. The architecture-level rank ordering, the absolute sensitivity attained, and the under-triage rates observed should therefore be interpreted as the safety profile of these architectures on the population they are most often deployed to serve.
+Two findings are central. First, clinical artificial intelligence safety performance, measured on a Medicaid messaging triage population with linguistic and clinical characteristics substantially divergent from those of conventional clinical artificial intelligence benchmarks, differs from the safety performance previously reported for the same architectural families on academic-medical-center and standardized-patient populations. Second, no single-architecture configuration in the evaluated matrix attained a deployable single-classifier operating point on the real-world test set; cascade architectures combining a high-recall first-stage screen with a high-precision second-stage filter are required to reach a deployment-realistic balance of sensitivity and specificity. The patient population was characterized by lower reading-level text, high colloquialism and abbreviation density, substantial implicit context, multilingual communication patterns, and a hazard category distribution dominated by behavioral-health and substance-use scenarios rather than the cardiovascular and oncologic scenarios that dominate published benchmarks. These population characteristics are precisely the characteristics that distinguish the patients who most depend on messaging triage from the patients on whom prior evaluations were conducted. The architecture-level rank ordering, the absolute sensitivity attained, and the under-triage rates observed should therefore be interpreted as the safety profile of these architectures on the population they are most often deployed to serve.
 
 ### Comparison with prior work
 
@@ -164,7 +182,7 @@ The 2026 multimodal AMIE demonstration [1] established an important benchmark fo
 
 ### Implications for deployment
 
-Under United States Food and Drug Administration Clinical Decision Support guidance, clinical decision support that recommends specific patient actions or is integrated with clinical workflow is subject to regulatory oversight; population-relevant performance evidence is a critical input to that oversight. The findings reported here support deployment of the clinical decision support architecture for messaging triage in the population it was developed for, with the safety profile characterized at a calibrated operating threshold and the operating-curve behavior fully released for inspection. The findings also bear on emerging trustworthy artificial intelligence frameworks that require population-relevant performance evidence: the present results are framework-compliant evidence under TRIPOD+AI [2] and DECIDE-AI [3] reporting guidelines, with the complete reporting checklists provided in Appendix A.
+Under United States Food and Drug Administration Clinical Decision Support guidance, clinical decision support that recommends specific patient actions or is integrated with clinical workflow is subject to regulatory oversight; population-relevant performance evidence is a critical input to that oversight. The findings reported here support a cascade-architecture deployment of clinical decision support for messaging triage in this population: the high-recall asymmetric-reward Conservative Q-Learning controller serves as the first-stage screen, forwarding candidate positives to a high-precision second-stage filter that confirms or rejects the screen-positive cases (Table 5). This two-stage design is the standard pattern in clinical computer-aided detection (e.g., chest computed tomography pulmonary embolism screening) and in established screening cascades such as Papanicolaou cytology followed by biopsy; the present results are consistent with that prior art. The findings also bear on emerging trustworthy artificial intelligence frameworks that require population-relevant performance evidence: the present results are framework-compliant evidence under TRIPOD+AI [2] and DECIDE-AI [3] reporting guidelines, with the complete reporting checklists provided in Appendix A.
 
 ### Strengths and limitations
 
@@ -251,3 +269,47 @@ None.
 17. Newcombe RG. Interval estimation for the difference between independent proportions: comparison of eleven methods. Stat Med. 1998;17(8):873-890. doi:10.1002/(SICI)1097-0258(19980430)17:8<873::AID-SIM779>3.0.CO;2-I.
 
 18. Wu D, Haredasht FN, Maharaj SK, et al. First, do NOHARM: towards clinically safe large language models. arXiv 2512.01241; deposited 2025-12-17. PubMed preprint PMID 41532042. [Preprint; not yet peer-reviewed at time of submission.]
+
+---
+
+## Tables
+
+### Table 1. Population characteristics of the held-out real-world test set and the physician-scripted comparison scenarios.
+
+{table1_population_block}
+
+*Caption: Sample sizes, hazard prevalence, age distribution, sex, self-reported race/ethnicity, and linguistic feature distributions for the {n_total}-message real-world test set and the 41-case physician-scripted comparison set. Linguistic features computed via the automated NLP pipeline described in Methods. Reading level by Flesch-Kincaid grade.*
+
+### Table 2. Per-architecture hazard detection metrics on the real-world test set.
+
+{table2_detection_metrics_block}
+
+*Caption: Sensitivity, specificity, positive predictive value, negative predictive value, F1, Matthews correlation coefficient, area under the receiver operating characteristic curve (where calibrated probability output is available), and false negatives per 1,000 messages at each architecture's calibrated operating threshold on the {n_total}-message held-out real-world test set. 95% confidence intervals: Wilson score method [17] for sensitivity, specificity, positive predictive value, and negative predictive value; parametric bootstrap (10,000 iterations, seed 42) for F1 and Matthews correlation coefficient; Hanley-McNeil for area under the receiver operating characteristic curve.*
+
+### Table 3. Operating-point analysis: sensitivity at matched specificity targets for architectures with calibrated probability output.
+
+{table3_operating_points_block}
+
+*Caption: For each architecture with calibrated probability output, the threshold that achieves the target specificity is identified on the architecture's receiver operating characteristic curve, and the sensitivity attained at that threshold is reported with the achieved specificity displayed alongside the target. The receiver operating characteristic curves derive from the same per-message prediction files as Table 2; monotonicity (sensitivity non-decreasing as specificity decreases) is enforced as a pipeline assertion.*
+
+### Table 4. Action recommendation appropriateness on the real-world test set.
+
+{table4_action_recommendations_block}
+
+*Caption: For each architecture, the proportion of recommendations classified as appropriate (matching the physician-adjudicated reference action), under-triage (recommending a less urgent action), or over-triage (recommending a more urgent action) on the 8-point ordinal action scale, on the {n_total}-message held-out real-world test set.*
+
+### Table 5. Cascade architectures: Pareto frontier of two-stage AND-rule configurations on the real-world test set.
+
+{table5_cascade_pareto_block}
+
+*Caption: Each row reports a Stage 1 architecture (high-recall screen) paired with a Stage 2 architecture (high-precision filter), with the final positive decision requiring concordance between both stages. Sensitivity, specificity, positive predictive value, F1, and Matthews correlation coefficient are computed on the AND-rule cascade output. Pareto-frontier pairs (those not dominated on both sensitivity and specificity by any other pair) are listed; the cascade pairing the asymmetric-reward Conservative Q-Learning controller with the safety-augmented Claude Opus 4.7 frontier large language model is the deployment-recommended balance of sensitivity and specificity. The full 72-pair cascade matrix is provided in Multimedia Appendix 1, Table S3.*
+
+---
+
+## Figures
+
+### Figure 1. Per-architecture sensitivity change from physician-scripted to real-world Medicaid test sets.
+
+{figure1_caption_block}
+
+*Caption: Each architecture's sensitivity on the physician-scripted 41-case comparison set is plotted against its sensitivity on the held-out {n_total}-message real-world test set. The diagonal indicates equal performance across populations; architectures below the diagonal lose sensitivity when moving from the physician comparison scenarios to the real-world Medicaid messaging population. Error bars reflect Wilson 95% confidence intervals.*

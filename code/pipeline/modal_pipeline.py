@@ -1,3 +1,4 @@
+# rev: 2026-05-19-23-15 — cache buster
 """
 rl-llm-safety v3 — Single canonical Modal pipeline
 ====================================================
@@ -741,6 +742,26 @@ def phase13_render_manuscript(run_id: str) -> dict:
         shutil.copy(csv, filtered_dir / csv.name)
     n_filtered = len(list(filtered_dir.glob("*.csv")))
     print(f"    {n_filtered} per-architecture CSVs filtered")
+
+    # 2b. Cascade analysis — produces cascade_matrix.csv + cascade_pareto.csv
+    # in results_dir, consumed downstream by render_tables_figures (Table 5 + S3).
+    print(f"  [2b/5] Computing cascade matrix from filtered predictions...")
+    subprocess.run([
+        "python3", f"{pipeline}/cascade_analysis.py",
+        "--predictions-dir", str(filtered_dir),
+        "--results-dir", str(results_dir),
+    ], check=True)
+
+    # 2c. Re-render tables/figures so Tables 5 + S3 (cascade) are included.
+    # The render_tables_figures CLI already ran during Phase 12 against the
+    # un-filtered predictions volume; re-run here against the filtered set so
+    # the rendered tables match the manuscript's run_id.
+    print(f"  [2c/5] Re-rendering tables/figures with cascade tables...")
+    subprocess.run([
+        "python3", f"{pipeline}/render_tables_figures.py",
+        "--predictions-dir", str(filtered_dir),
+        "--results-dir", str(results_dir),
+    ], check=True)
 
     # 3. Render each template via manuscript_renderer CLI
     print("  [3/5] Rendering manuscripts...")

@@ -101,6 +101,10 @@ A multinomial logistic regression on sentence-BERT embeddings classifies message
 
 The deployed production system uses 147 hand-crafted rules. The implementation released here uses a 14-rule subset for reproducibility tractability; the simplified version is documented in Methods §3.4 of the main text with explicit acknowledgement of the simplification. The 14 rule families cover chest pain, stroke signs, anaphylaxis, suicidality, overdose, obstetric emergency, severe pain, breathing distress, neurological emergency, self-harm, substance overdose, falls, medication errors, and behavioral emergency triggers.
 
+### C.4b Safety-augmented system prompt (frontier large language model methodology)
+
+Frontier large language models (Claude Opus 4.7 and Gemini 3.1 Pro Preview) were evaluated with a safety-augmented system prompt that (a) describes the medical-triage-assistant role for a Medicaid managed care patient-messaging service, (b) explicitly directs the model to prioritize patient safety and err toward escalation in cases of ambiguity, (c) characterizes the patient population's typical communication patterns (low literacy, colloquialisms, abbreviations, implicit context), (d) enumerates representative hazard categories spanning cardiac, neurological, behavioral-health, substance-use, obstetric, and pediatric emergencies, and (e) specifies the 8-point action recommendation scale (Action 1 = self-care through Action 8 = emergency services). The output format is a structured JSON object containing a binary hazard flag, an action label, and a brief rationale. The full safety-augmented prompt and the default-prompt comparator are released in the code repository at `code/llm_clients/prompts.py`.
+
 ### C.5 Calibration and temperature scaling
 
 The upstream calibrated detector applies temperature scaling on the validation set after multinomial logistic regression training. The optimal temperature minimizes negative log-likelihood on the calibration set ({n_val} held-out examples).
@@ -109,45 +113,51 @@ The upstream calibrated detector applies temperature scaling on the validation s
 
 ## D. Supplementary tables
 
-### Table S1: Physician-holdout metrics with TP/FN/TN/FP per architecture
+### Table S1. Physician-holdout hazard detection metrics per architecture.
 
-[Rendered from `results/tables/tableS1_physician_holdout_metrics.csv`]
+{tableS1_physician_holdout_block}
 
-### Table S2: Δ sensitivity (physician → real-world) with parametric bootstrap CIs
+*Caption: Per-architecture sensitivity, specificity, PPV, NPV, F1, MCC, AUROC (where calibrated probabilities are available), and false-negative counts on the 41-case physician-scripted comparison set (27 hazards / 14 benigns). 95% confidence intervals: Wilson score method for proportions; parametric bootstrap (10,000 iterations) for F1 and MCC.*
 
-[Rendered from `results/tables/tableS2_delta_bootstrap.csv`]
+### Table S2. Sensitivity change from physician-scripted to real-world test sets with parametric bootstrap confidence intervals.
 
-### Table S3: Hazard category stratification (real-world test set)
+{tableS2_delta_bootstrap_block}
 
-[Per-category sensitivity for the deployed CDS architecture, with Wilson CIs. Only categories with n_hazard ≥ 3 reported.]
+*Caption: For each architecture, sensitivity attained on the physician-scripted 41-case comparison set is reported alongside sensitivity on the real-world {n_total}-message test set. The point estimate of the sensitivity change is reported in percentage points, with 95% confidence intervals from parametric bootstrap (10,000 iterations, seed 42) sampling sensitivities independently from binomial distributions parameterized by the observed proportions and the corresponding test-set sample sizes.*
 
-### Table S4: Equity-stratified sensitivity by self-reported demographics
+### Table S3. Full 72-pair cascade matrix on the real-world test set.
 
-[Sex-stratified and race-stratified sensitivity with Wilson CIs and equalized odds differences. Demographic data available for {n_demographic_available} of 2,000 test messages.]
+{tableS3_cascade_full_block}
 
-### Table S5: Full pairwise McNemar matrix with Hochberg correction
+*Caption: All 72 (Stage 1, Stage 2) two-stage AND-rule cascade configurations evaluated on the {n_total}-message real-world test set. The Pareto frontier subset is highlighted in Table 5 of the main text. Sensitivity and specificity are reported as point estimates; full confidence intervals are available in the released supplementary CSV.*
 
-[Rendered from `results/mcnemar_matrix.csv`. All k = 15 pairwise comparisons among the 6 top-level architectures, chi-squared statistics, raw p-values, Hochberg significance.]
+### Table S4. Equity-stratified sensitivity by self-reported demographics.
 
-### Table S6: Calibrated operating-point thresholds per architecture
+_[Equity-stratified analysis: sex-stratified and race-stratified sensitivity with Wilson 95% confidence intervals and equalized odds differences, reported for each architecture. This table is reserved for the demographic stratification analysis. Demographic data availability and stratification methodology are described in Methods §"Outcomes" and §"Statistical analysis".]_
 
-[Rendered from `results/thresholds.json`. Per-architecture calibrated decision threshold selected on training/validation split.]
+### Table S5. Full pairwise McNemar matrix with Hochberg step-up correction.
+
+_[Full k = N×(N−1)/2 pairwise McNemar discordant-pair matrix among all evaluated architectures on the real-world test set, with chi-square statistics, raw two-sided p-values, and Hochberg step-up significance at α = 0.05. The complete matrix is released as `results/mcnemar_matrix.csv` in Multimedia Appendix 2.]_
+
+### Table S6. Calibrated operating-point thresholds per architecture.
+
+_[Per-architecture calibrated decision threshold selected on the training/validation split. The complete threshold map is released as `results/thresholds.json` in Multimedia Appendix 2.]_
 
 ---
 
 ## E. Supplementary figures
 
-### Figure S1: Operating-curve overlays for all calibrated-probability architectures
+### Figure S1. Operating-curve overlays for all calibrated-probability architectures.
 
-[Receiver-operating-characteristic curves for every architecture with calibrated probability outputs. Curves derived from operating_curves.csv in the canonical pipeline output.]
+_[Receiver-operating-characteristic curves overlaid for every architecture with calibrated probability outputs (logistic regression with TF-IDF features, XGBoost with sentence-BERT embeddings, constellation, rule-based guardrails, CQL controller sens-opt, CQL controller reward-opt). Curves derived from `operating_curves.csv` in the canonical pipeline output. The frontier large language models and ActionHead are excluded because they do not return calibrated probability output.]_
 
-### Figure S2: Calibration curves and reliability diagrams
+### Figure S2. Calibration curves and reliability diagrams per architecture.
 
-[Per-architecture calibration plots showing predicted versus observed hazard frequencies in deciles.]
+_[Per-architecture calibration plots showing predicted versus observed hazard frequencies in deciles, restricted to the architectures with calibrated probability outputs.]_
 
-### Figure S3: Hazard-category sensitivity bar chart
+### Figure S3. Hazard-category sensitivity by architecture.
 
-[Per-category sensitivity for the deployed CDS architecture, sorted by category prevalence.]
+_[Per-hazard-category sensitivity for the architectures with the highest single-architecture F1 in the matrix, sorted by category prevalence in the real-world test set. Categories with fewer than three hazards in the test set are flagged as insufficiently powered for category-level inference.]_
 
 ---
 
@@ -174,3 +184,4 @@ This appendix uses its own sequentially-numbered reference list. The same primar
 2. Collins GS, Moons KGM, Dhiman P, Riley RD, Beam AL, Van Calster B, Ghassemi M, Liu X, Reitsma JB, van Smeden M, et al. TRIPOD+AI statement: updated guidance for reporting clinical prediction models that use regression or machine learning methods. BMJ. 2024;385:e078378. doi:10.1136/bmj-2023-078378. PMID: 38626948.
 
 3. Vasey B, Nagendran M, Campbell B, Clifton DA, Collins GS, Denaxas S, Denniston AK, Faes L, Geerts B, Ibrahim M, et al. Reporting guideline for the early stage clinical evaluation of decision support systems driven by artificial intelligence: DECIDE-AI. BMJ. 2022;377:e070904. doi:10.1136/bmj-2022-070904. PMID: 35584845.
+

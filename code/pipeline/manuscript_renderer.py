@@ -86,6 +86,65 @@ class TemplateRenderer:
                 "n_val": 256,
             }
 
+    # Mapping from {placeholder_block} → rendered table file under results_dir/tables/
+    _BLOCK_TABLE_MAP = {
+        "table1_population_block": None,  # built from manifest + linguistic features inline
+        "table2_detection_metrics_block": "tables/table2_detection_metrics.md",
+        "table3_operating_points_block": "tables/table3_operating_points.md",
+        "table4_action_recommendations_block": "tables/table4_action_recommendations.md",
+        "table5_cascade_pareto_block": "tables/table5_cascade_pareto.md",
+        "tableS1_physician_holdout_block": "tables/tableS1_physician_holdout_metrics.md",
+        "tableS2_delta_bootstrap_block": "tables/tableS2_delta_bootstrap.md",
+        "tableS3_cascade_full_block": "tables/tableS3_cascade_full.md",
+        "figure1_caption_block": None,  # figure binary lives at figures/figure1_sens_spec_change.png
+        "figure2_caption_block": None,
+    }
+
+    def _resolve_block(self, key: str) -> str:
+        """Read an embeddable block from results/tables/<name>.md or build inline."""
+        if key == "table1_population_block":
+            return self._build_table1_population()
+        if key in ("figure1_caption_block", "figure2_caption_block"):
+            fig_name = {
+                "figure1_caption_block": "figure1_sens_spec_change.png",
+                "figure2_caption_block": "figure2_action_recommendations.png",
+            }[key]
+            return f"![{fig_name}](figures/{fig_name})"
+        rel = self._BLOCK_TABLE_MAP.get(key)
+        if rel:
+            path = self.results_dir / rel
+            if path.exists():
+                return path.read_text()
+            return f"_[Table file {rel} not yet rendered]_"
+        return ""
+
+    def _build_table1_population(self) -> str:
+        """Construct Table 1 inline from manifest + linguistic features."""
+        rw = self.manifest.get("datasets", {}).get("realworld_n2000", {})
+        ph = self.manifest.get("datasets", {}).get("physician_n41", {})
+        rw_ling = self.linguistic.get("realworld", {})
+        ph_ling = self.linguistic.get("physician", {})
+
+        def f(x, fmt="{:.1f}"):
+            try:
+                return fmt.format(float(x))
+            except (TypeError, ValueError):
+                return "—"
+
+        lines = [
+            "| Characteristic | Real-world Medicaid test set | Physician-scripted comparison |",
+            "|---|---|---|",
+            f"| Sample size, N | {rw.get('n_records', '—')} | {ph.get('n_records', '—')} |",
+            f"| Hazards adjudicated, n (%) | {rw.get('n_hazards', '—')} ({100*rw.get('n_hazards',0)/max(rw.get('n_records',1),1):.2f}%) | {ph.get('n_hazards', '—')} ({100*ph.get('n_hazards',0)/max(ph.get('n_records',1),1):.1f}%) |",
+            f"| Benigns adjudicated, n (%) | {rw.get('n_benigns', '—')} ({100*rw.get('n_benigns',0)/max(rw.get('n_records',1),1):.2f}%) | {ph.get('n_benigns', '—')} ({100*ph.get('n_benigns',0)/max(ph.get('n_records',1),1):.1f}%) |",
+            f"| Reading level (Flesch-Kincaid grade), mean | {f(rw_ling.get('grade_level_mean'))} | {f(ph_ling.get('grade_level_mean'))} |",
+            f"| Colloquialisms, % messages | {f(rw_ling.get('colloquialism_pct'))} | {f(ph_ling.get('colloquialism_pct'))} |",
+            f"| Abbreviations, % messages | {f(rw_ling.get('abbreviation_pct'))} | {f(ph_ling.get('abbreviation_pct'))} |",
+            f"| Implicit contextual references, % messages | {f(rw_ling.get('implicit_context_pct'))} | {f(ph_ling.get('implicit_context_pct'))} |",
+            f"| Word count, mean | {f(rw_ling.get('word_count_mean'))} | {f(ph_ling.get('word_count_mean'))} |",
+        ]
+        return "\n".join(lines)
+
     def _lookup(self, placeholder: str) -> Any:
         """Resolve a placeholder name to a value. Raises KeyError if not found."""
         parts = placeholder.split(".")
@@ -115,6 +174,11 @@ class TemplateRenderer:
                 if key.endswith(f"_{dataset_key}"):
                     feature = key[: -len(f"_{dataset_key}")]
                     return self.linguistic.get(dataset_key, {}).get(feature.replace("grade_level", "grade_level_mean"), "?")
+            # Table/figure embed blocks — read the rendered markdown table or
+            # produce a figure-reference block. Returns "" silently if absent
+            # (a missing table is allowed at intermediate render time).
+            if key.endswith("_block"):
+                return self._resolve_block(key)
             raise KeyError(f"Unknown top-level placeholder: {key}")
 
         head = parts[0]

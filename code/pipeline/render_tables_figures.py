@@ -340,6 +340,91 @@ def render_figure2_action_recommendations(predictions_dir: Path, output_dir: Pat
     return out_path
 
 
+ARCH_DISPLAY_SHORT = {
+    "logreg_tfidf": "LogReg+TF-IDF",
+    "xgboost_sbert": "XGBoost+SBERT",
+    "constellation": "Constellation",
+    "guardrails": "Guardrails",
+    "cql_sens_opt": "CQL sens-opt",
+    "cql_reward_opt": "CQL reward-opt",
+    "actionhead": "ActionHead",
+    "claude_opus_4_7_safety": "Claude Opus 4.7",
+    "gemini_3_1_pro_safety": "Gemini 3.1 Pro",
+}
+
+
+def render_table5_cascade_pareto(results_dir: Path, output_dir: Path) -> Path:
+    """Table 5: Pareto frontier of two-stage AND-rule cascades on the real-world set."""
+    cascade_path = results_dir / "cascade_pareto.csv"
+    if not cascade_path.exists():
+        csv_path = output_dir / "table5_cascade_pareto.csv"
+        md_path = output_dir / "table5_cascade_pareto.md"
+        pd.DataFrame().to_csv(csv_path, index=False)
+        md_path.write_text("_[Table 5 not yet rendered — cascade_pareto.csv missing]_\n")
+        return csv_path
+
+    pf = pd.read_csv(cascade_path)
+    # Drop duplicate orderings (AND is commutative; keep stage1<stage2 alphabetically)
+    pf = pf[pf["stage1"] < pf["stage2"]].copy()
+    pf = pf.sort_values("sensitivity", ascending=False)
+
+    def fmt_pair(s1, s2):
+        return f"{ARCH_DISPLAY_SHORT.get(s1, s1)} × {ARCH_DISPLAY_SHORT.get(s2, s2)}"
+
+    rows = []
+    for _, r in pf.iterrows():
+        rows.append({
+            "Cascade (Stage 1 × Stage 2)": fmt_pair(r["stage1"], r["stage2"]),
+            "Sensitivity (95% CI)": fmt_ci(r["sensitivity"], r["sensitivity_ci_lo"], r["sensitivity_ci_hi"]),
+            "Specificity (95% CI)": fmt_ci(r["specificity"], r["specificity_ci_lo"], r["specificity_ci_hi"]),
+            "PPV": f"{r['ppv']:.3f}" if pd.notna(r["ppv"]) else "—",
+            "F1": f"{r['f1']:.3f}" if pd.notna(r["f1"]) else "—",
+            "MCC": f"{r['mcc']:.3f}" if pd.notna(r["mcc"]) else "—",
+            "FN per 1,000": f"{r['fn_per_1000']:.1f}",
+        })
+    out_df = pd.DataFrame(rows)
+    csv_path = output_dir / "table5_cascade_pareto.csv"
+    md_path = output_dir / "table5_cascade_pareto.md"
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
+def render_tableS3_cascade_full(results_dir: Path, output_dir: Path) -> Path:
+    """Table S3: Full 72-pair cascade matrix on the real-world set."""
+    cascade_path = results_dir / "cascade_matrix.csv"
+    if not cascade_path.exists():
+        csv_path = output_dir / "tableS3_cascade_full.csv"
+        md_path = output_dir / "tableS3_cascade_full.md"
+        pd.DataFrame().to_csv(csv_path, index=False)
+        md_path.write_text("_[Table S3 not yet rendered — cascade_matrix.csv missing]_\n")
+        return csv_path
+
+    cm = pd.read_csv(cascade_path)
+    cm = cm[(cm["dataset"] == "realworld_n2000") & (cm["stage1"] < cm["stage2"])].copy()
+    cm = cm.sort_values(["sensitivity", "specificity"], ascending=[False, False])
+
+    def fmt_pair(s1, s2):
+        return f"{ARCH_DISPLAY_SHORT.get(s1, s1)} × {ARCH_DISPLAY_SHORT.get(s2, s2)}"
+
+    rows = []
+    for _, r in cm.iterrows():
+        rows.append({
+            "Cascade": fmt_pair(r["stage1"], r["stage2"]),
+            "Sens": f"{r['sensitivity']:.3f}",
+            "Spec": f"{r['specificity']:.3f}",
+            "PPV": f"{r['ppv']:.3f}" if pd.notna(r["ppv"]) else "—",
+            "F1": f"{r['f1']:.3f}" if pd.notna(r["f1"]) else "—",
+            "MCC": f"{r['mcc']:.3f}" if pd.notna(r["mcc"]) else "—",
+        })
+    out_df = pd.DataFrame(rows)
+    csv_path = output_dir / "tableS3_cascade_full.csv"
+    md_path = output_dir / "tableS3_cascade_full.md"
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
 def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     """Render every table and figure from canonical CSVs."""
     results_dir = Path(results_dir)
@@ -366,12 +451,18 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     print("[render] Table 4 (action recommendations)")
     out["table4"] = render_table4_action_recommendations(predictions_dir, tables_dir)
     print(f"  → {out['table4']}")
+    print("[render] Table 5 (cascade Pareto frontier)")
+    out["table5"] = render_table5_cascade_pareto(results_dir, tables_dir)
+    print(f"  → {out['table5']}")
     print("[render] Table S1 (physician holdout)")
     out["tableS1"] = render_tableS1_physician_metrics(metrics_df, tables_dir)
     print(f"  → {out['tableS1']}")
     print("[render] Table S2 (Δ bootstrap)")
     out["tableS2"] = render_tableS2_delta_bootstrap(delta_df, tables_dir)
     print(f"  → {out['tableS2']}")
+    print("[render] Table S3 (full cascade matrix)")
+    out["tableS3"] = render_tableS3_cascade_full(results_dir, tables_dir)
+    print(f"  → {out['tableS3']}")
     print("[render] Figure 1 (Δ sens chart)")
     out["figure1"] = render_figure1_sens_change(delta_df, figures_dir)
     print(f"  → {out['figure1']}")
