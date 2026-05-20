@@ -166,6 +166,8 @@ Local monitor `b5a1tbj4a` will keep watching but its job is done.
 | 2026-05-19 | Smoke test pre-flight + LESSONS_LEARNED.md added (commit `6f03e30`) for future protection |
 | 2026-05-19 | Phase 6 re-run completed cleanly with fixed Claude client (Claude 2041/2041 + Gemini skip-resumed); Phase 9-12-14 + auto Phase 13 chain produced full draft set |
 | 2026-05-19 | Strict concordance check found 4 final errors (orphan ref [9], cover-letter missing Wilson/Hochberg/multi-turn) — all patched in templates (`2d6f6e4`), Phase 13 re-run, **all 9 strict checks now pass with 0 errors 0 warnings** |
+| 2026-05-19 | Cold-read feedback: single-architecture matrix is sterile. Added cascade analysis (Stage 1 high-recall + Stage 2 high-precision) as the scientific contribution. New `cascade_analysis.py` computes 72-pair AND-rule matrix; Table 5 + Table S3 added. Implicit Compass framing: asymmetric-reward CQL controller is the natural Stage 1 screen. (`bb6814a`) |
+| 2026-05-19 | Author list updated to JMIR MI #94081 lineage with three cuts + Bernardo Arevalo added: Basu, Patel, Sheth, Arevalo, Morgan, Batniji. Tables/figures embedded at end of main text + appendix per /submit-prep convention. All 9 strict concordance checks still pass. (`bb6814a`) |
 
 ---
 
