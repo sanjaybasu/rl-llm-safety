@@ -102,6 +102,11 @@ class TemplateRenderer:
         "tableS2_delta_bootstrap_block": "tables/tableS2_delta_bootstrap.md",
         "tableS3_cascade_full_block": "tables/tableS3_cascade_full.md",
         "tableS4_category_stratification_block": "tables/tableS4_category_stratification.md",
+        "tableS5_mcnemar_matrix_block": "tables/tableS5_mcnemar_matrix.md",
+        "tableS6_thresholds_block": "tables/tableS6_thresholds.md",
+        "figureS1_caption_block": None,
+        "figureS2_caption_block": None,
+        "figureS3_caption_block": None,
         "figure1_caption_block": None,  # figure binary lives at figures/figure1_sens_spec_change.png
         "figure2_caption_block": None,
         "figure3_caption_block": None,
@@ -111,12 +116,16 @@ class TemplateRenderer:
         """Read an embeddable block from results/tables/<name>.md or build inline."""
         if key == "table1_population_block":
             return self._build_table1_population()
-        if key in ("figure1_caption_block", "figure2_caption_block", "figure3_caption_block"):
-            fig_name = {
-                "figure1_caption_block": "figure1_sens_spec_change.png",
-                "figure2_caption_block": "figure2_action_recommendations.png",
-                "figure3_caption_block": "figure3_pareto_frontier.png",
-            }[key]
+        figure_map = {
+            "figure1_caption_block": "figure1_sens_spec_change.png",
+            "figure2_caption_block": "figure2_action_recommendations.png",
+            "figure3_caption_block": "figure3_pareto_frontier.png",
+            "figureS1_caption_block": "figureS1_operating_curves.png",
+            "figureS2_caption_block": "figureS2_calibration.png",
+            "figureS3_caption_block": "figureS3_category_sensitivity.png",
+        }
+        if key in figure_map:
+            fig_name = figure_map[key]
             return f"![{fig_name}](figures/{fig_name})"
         rel = self._BLOCK_TABLE_MAP.get(key)
         if rel:

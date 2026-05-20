@@ -2,7 +2,7 @@
 
 This appendix accompanies the main manuscript titled "AI safety evaluation in an underrepresented Medicaid population: real-world performance of clinical decision support and frontier language models on patient messaging triage," submitted to BMC Medical Informatics and Decision Making (BMC MIDM).
 
-Every numerical value in this appendix derives from the canonical per-message prediction files released as Multimedia Appendix 2.
+Every numerical value in this appendix derives from the canonical per-message prediction files retained by the corresponding author and available on request for verification.
 
 ---
 
@@ -153,11 +153,15 @@ Caption: Sensitivity stratified by physician-adjudicated hazard category, restri
 
 ### Table S5. Full pairwise McNemar matrix with Hochberg step-up correction.
 
-_[Full k = N×(N−1)/2 pairwise McNemar discordant-pair matrix among all evaluated architectures on the real-world test set, with chi-square statistics, raw two-sided p-values, and Hochberg step-up significance at α = 0.05. The complete matrix is released in Multimedia Appendix 2.]_
+{tableS5_mcnemar_matrix_block}
+
+Caption: Full pairwise McNemar discordant-pair matrix among all evaluated architectures on the real-world test set, with chi-square statistics, raw two-sided p-values, and Hochberg step-up significance at α = 0.05.
 
 ### Table S6. Calibrated operating-point thresholds per architecture.
 
-_[Per-architecture calibrated decision threshold selected on the training/validation split. The complete threshold map is released in Multimedia Appendix 2.]_
+{tableS6_thresholds_block}
+
+Caption: Per-architecture calibrated decision threshold selected on the training/validation split.
 
 ---
 
@@ -165,33 +169,25 @@ _[Per-architecture calibrated decision threshold selected on the training/valida
 
 ### Figure S1. Operating-curve overlays for all calibrated-probability architectures.
 
-_[Receiver-operating-characteristic curves overlaid for every architecture with calibrated probability outputs (logistic regression with TF-IDF features, XGBoost with sentence-BERT embeddings, constellation, rule-based guardrails, CQL controller sens-opt, CQL controller reward-opt). Curves derived from `operating_curves.csv` in the canonical pipeline output. The frontier large language models and ActionHead are excluded because they do not return calibrated probability output.]_
+{figureS1_caption_block}
+
+Caption: Receiver operating characteristic curves overlaid for every architecture with calibrated probability output (logistic regression with TF-IDF features, XGBoost with sentence-BERT embeddings, constellation, rule-based guardrails, Conservative Q-Learning controller sensitivity-optimized, Conservative Q-Learning controller reward-optimized). The frontier large language models and the action recommender are excluded because they do not return calibrated probability output.
 
 ### Figure S2. Calibration curves and reliability diagrams per architecture.
 
-_[Per-architecture calibration plots showing predicted versus observed hazard frequencies in deciles, restricted to the architectures with calibrated probability outputs.]_
+{figureS2_caption_block}
+
+Caption: Per-architecture calibration plots showing predicted versus observed hazard frequencies in deciles, restricted to the architectures with calibrated probability outputs.
 
 ### Figure S3. Hazard-category sensitivity by architecture.
 
-_[Per-hazard-category sensitivity for the architectures with the highest single-architecture F1 in the matrix, sorted by category prevalence in the real-world test set. Categories with fewer than three hazards in the test set are flagged as insufficiently powered for category-level inference.]_
+{figureS3_caption_block}
+
+Caption: Per-hazard-category sensitivity by architecture on the real-world test set. The horizontal dashed line at sensitivity 0.80 indicates the conventional clinical-grade sensitivity floor in clinical computer-aided detection benchmarks.
 
 ---
 
-## F. Per-message prediction release (Supplementary File 2)
-
-Multimedia Appendix 2 (a separate ZIP archive submitted alongside this manuscript) contains one CSV per architecture × dataset, with the columns:
-
-```
-message_id, dataset, true_hazard, true_action, hazard_category,
-pred_proba, pred_hazard, pred_action, threshold_used,
-architecture, model_version, run_id, inference_time_s
-```
-
-These files contain no patient text and no patient identifier beyond opaque message_id values. Patient message text remains under HIPAA data-use agreement and is available to bona-fide researchers on request to the corresponding author.
-
----
-
-## G. References
+## F. References
 
 This appendix uses its own sequentially-numbered reference list. The same primary literature is cross-referenced in the main manuscript reference list under different numbers.
 

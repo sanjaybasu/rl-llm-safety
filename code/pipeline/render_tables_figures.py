@@ -724,6 +724,160 @@ def render_table9_deployment_grade(results_dir: Path, output_dir: Path) -> Path:
     return csv_path
 
 
+def render_tableS5_mcnemar_matrix(results_dir: Path, output_dir: Path) -> Path:
+    """Table S5: Full pairwise McNemar matrix with chi-square, p-value, Hochberg significance."""
+    p = results_dir / "mcnemar_matrix.csv"
+    csv_path = output_dir / "tableS5_mcnemar_matrix.csv"
+    md_path = output_dir / "tableS5_mcnemar_matrix.md"
+    if not p.exists():
+        pd.DataFrame().to_csv(csv_path, index=False)
+        md_path.write_text("_[Table S5 not yet rendered]_\n")
+        return csv_path
+    df = pd.read_csv(p)
+    rows = []
+    for _, r in df.iterrows():
+        rows.append({
+            "Architecture A": ARCH_DISPLAY.get(r.get("arch_a", ""), r.get("arch_a", "")),
+            "Architecture B": ARCH_DISPLAY.get(r.get("arch_b", ""), r.get("arch_b", "")),
+            "Chi-square": f"{r['chi2']:.3f}" if pd.notna(r.get("chi2")) else "—",
+            "Raw p-value": f"{r['p_raw']:.4f}" if pd.notna(r.get("p_raw")) else "—",
+            "Hochberg significant (α=0.05)": "Yes" if r.get("sig_hochberg", False) else "No",
+        })
+    out_df = pd.DataFrame(rows)
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
+def render_tableS6_thresholds(results_dir: Path, output_dir: Path) -> Path:
+    """Table S6: Calibrated decision threshold per architecture."""
+    import json
+    p = results_dir / "thresholds.json"
+    csv_path = output_dir / "tableS6_thresholds.csv"
+    md_path = output_dir / "tableS6_thresholds.md"
+    if not p.exists():
+        pd.DataFrame().to_csv(csv_path, index=False)
+        md_path.write_text("_[Table S6 not yet rendered]_\n")
+        return csv_path
+    th = json.loads(p.read_text())
+    rows = [{"Architecture": ARCH_DISPLAY.get(k, k), "Calibrated decision threshold": f"{v:.4f}"}
+            for k, v in th.items()]
+    out_df = pd.DataFrame(rows)
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
+def render_figureS1_operating_curves(results_dir: Path, output_dir: Path) -> Path:
+    """Figure S1: ROC overlays for all calibrated-probability architectures."""
+    import matplotlib.pyplot as plt
+    curves_path = results_dir / "operating_curves.csv"
+    out_path = output_dir / "figureS1_operating_curves.png"
+    if not curves_path.exists():
+        return out_path
+    df = pd.read_csv(curves_path)
+    fig, ax = plt.subplots(figsize=(8, 7))
+    for arch in df["architecture"].unique():
+        sub = df[df["architecture"] == arch]
+        ax.plot(1 - sub["specificity"], sub["sensitivity"],
+                label=ARCH_DISPLAY.get(arch, arch), linewidth=1.5)
+    ax.plot([0, 1], [0, 1], "k:", alpha=0.4, label="Chance")
+    ax.set_xlabel("False positive rate (1 − specificity)")
+    ax.set_ylabel("Sensitivity")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    ax.set_title("Receiver operating characteristic curves: architectures with calibrated probability output")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close()
+    return out_path
+
+
+def render_figureS2_calibration(results_dir: Path, predictions_dir: Path, output_dir: Path) -> Path:
+    """Figure S2: Calibration plots per architecture (predicted vs observed in deciles)."""
+    import matplotlib.pyplot as plt
+    out_path = output_dir / "figureS2_calibration.png"
+    if not predictions_dir.exists():
+        return out_path
+    archs_with_proba = []
+    for csv_path in sorted(predictions_dir.glob("*.csv")):
+        df = pd.read_csv(csv_path)
+        rw = df[df["dataset"] == "realworld_n2000"].copy()
+        if rw.empty: continue
+        rw["pred_proba"] = pd.to_numeric(rw["pred_proba"], errors="coerce")
+        if rw["pred_proba"].isna().all(): continue
+        arch = rw["architecture"].iloc[0]
+        archs_with_proba.append((arch, rw["pred_proba"].values, rw["true_hazard"].astype(int).values))
+
+    if not archs_with_proba:
+        plt.figure(figsize=(6, 4)); plt.text(0.5, 0.5, "No calibrated probabilities available",
+                                              ha="center", va="center"); plt.axis("off")
+        plt.savefig(out_path, dpi=200, bbox_inches="tight"); plt.close()
+        return out_path
+
+    n = len(archs_with_proba)
+    ncols = min(3, n); nrows = (n + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.5*ncols, 4*nrows), squeeze=False)
+    for ax_i, (arch, proba, true) in enumerate(archs_with_proba):
+        ax = axes[ax_i // ncols][ax_i % ncols]
+        # Decile bins
+        bins = np.quantile(proba, np.linspace(0, 1, 11))
+        bins = np.unique(bins)  # collapse duplicates
+        if len(bins) < 3:
+            ax.text(0.5, 0.5, f"{ARCH_DISPLAY.get(arch, arch)}\nFew distinct\nprobability values",
+                    ha="center", va="center", transform=ax.transAxes)
+            ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_title(ARCH_DISPLAY.get(arch, arch), fontsize=10)
+            continue
+        idx = np.digitize(proba, bins[1:-1])
+        x, y = [], []
+        for b in range(len(bins) - 1):
+            mask = idx == b
+            if mask.sum() < 5: continue
+            x.append(proba[mask].mean())
+            y.append(true[mask].mean())
+        ax.plot([0, 1], [0, 1], "k:", alpha=0.4)
+        ax.scatter(x, y, s=40, color="steelblue")
+        ax.plot(x, y, "-", color="steelblue", alpha=0.5)
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+        ax.set_title(ARCH_DISPLAY.get(arch, arch), fontsize=10)
+        ax.set_xlabel("Predicted probability"); ax.set_ylabel("Observed hazard fraction")
+        ax.grid(alpha=0.3)
+    for empty in range(len(archs_with_proba), nrows*ncols):
+        axes[empty // ncols][empty % ncols].axis("off")
+    plt.suptitle("Calibration: predicted probability versus observed hazard fraction (deciles)",
+                 fontsize=12, y=1.0)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200, bbox_inches="tight"); plt.close()
+    return out_path
+
+
+def render_figureS3_category_sensitivity(results_dir: Path, output_dir: Path) -> Path:
+    """Figure S3: Per-category sensitivity bar chart."""
+    import matplotlib.pyplot as plt
+    cs_path = results_dir / "category_stratification.csv"
+    out_path = output_dir / "figureS3_category_sensitivity.png"
+    if not cs_path.exists():
+        return out_path
+    cs = pd.read_csv(cs_path)
+    pivot = cs.pivot_table(index="hazard_category", columns="architecture",
+                            values="sensitivity", aggfunc="first")
+    pivot.columns = [ARCH_DISPLAY.get(c, c) for c in pivot.columns]
+    fig, ax = plt.subplots(figsize=(11, 6))
+    pivot.plot(kind="bar", ax=ax, width=0.85, edgecolor="black", linewidth=0.3)
+    ax.axhline(0.80, color="darkgreen", linestyle="--", linewidth=1.2, alpha=0.7,
+               label="Clinical-grade sensitivity floor (0.80)")
+    ax.set_xlabel("Hazard category")
+    ax.set_ylabel("Sensitivity")
+    ax.set_ylim(0, 1.05)
+    ax.set_title("Per-architecture sensitivity by hazard category (real-world test set)")
+    ax.legend(loc="upper right", fontsize=8, ncol=2)
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200, bbox_inches="tight"); plt.close()
+    return out_path
+
+
 def render_table7_closing_the_gap(results_dir: Path, output_dir: Path) -> Path:
     """Table 7: best operating point under each closing-the-gap strategy.
 
@@ -978,6 +1132,21 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     print("[render] Table S4 (category stratification)")
     out["tableS4"] = render_tableS4_category_stratification(results_dir, tables_dir)
     print(f"  → {out['tableS4']}")
+    print("[render] Table S5 (McNemar matrix)")
+    out["tableS5"] = render_tableS5_mcnemar_matrix(results_dir, tables_dir)
+    print(f"  → {out['tableS5']}")
+    print("[render] Table S6 (thresholds)")
+    out["tableS6"] = render_tableS6_thresholds(results_dir, tables_dir)
+    print(f"  → {out['tableS6']}")
+    print("[render] Figure S1 (operating curves)")
+    out["figureS1"] = render_figureS1_operating_curves(results_dir, figures_dir)
+    print(f"  → {out['figureS1']}")
+    print("[render] Figure S2 (calibration)")
+    out["figureS2"] = render_figureS2_calibration(results_dir, predictions_dir, figures_dir)
+    print(f"  → {out['figureS2']}")
+    print("[render] Figure S3 (category sensitivity bar chart)")
+    out["figureS3"] = render_figureS3_category_sensitivity(results_dir, figures_dir)
+    print(f"  → {out['figureS3']}")
     print("[render] Figure 1 (Δ sens chart)")
     out["figure1"] = render_figure1_sens_change(delta_df, figures_dir)
     print(f"  → {out['figure1']}")
