@@ -1,20 +1,19 @@
 # Patient data — NEVER commit to public repo (HIPAA + Waymark DUA)
-predictions/canonical/
-predictions/canonical_partial/
-predictions/canonical_filtered/
-predictions/run_manifest.json
+predictions/
 results/predictions_filtered/
-results/supplementary/multimedia_appendix_2.zip
 
-# Temporary partial outputs (may contain per-message data)
+# Public repo policy: code only. No manuscript drafts, no derived results,
+# no tables, no figures, no appendix, no submission bundles. The published
+# paper and its supplementary materials live with the journal; this repo
+# carries only the code needed to reproduce the analysis from the source data.
+manuscript_template/
+results/
+docx/
+supplementary/
+
+# Temporary partial outputs
 results_partial/
 results_modal_pull/
-
-# Per-message failure mode CSV may contain message_ids — keep local only
-results/failure_mode_per_message.csv
-
-# Rendered draft outputs (regenerated each render from templates + canonical CSVs)
-results/drafts/
 
 # Python
 __pycache__/

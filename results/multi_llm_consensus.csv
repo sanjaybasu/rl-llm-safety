@@ -1,5 +1,0 @@
-tp,fp,tn,fn,sensitivity,specificity,ppv,f1,mcc,clinical_grade,rule
-49,237,1598,116,0.297,0.8708,0.1713,0.2173,0.1319,False,claude_only
-3,10,1825,162,0.0182,0.9946,0.2308,0.0337,0.0436,False,gemini_only
-49,240,1595,116,0.297,0.8692,0.1696,0.2159,0.13,False,OR_rule_claude_or_gemini
-3,7,1828,162,0.0182,0.9962,0.3,0.0343,0.056,False,AND_rule_claude_and_gemini

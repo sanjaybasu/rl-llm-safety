@@ -1,5 +1,0 @@
-sens_floor,n_configurations_meeting_floor,max_specificity,winning_strategy_type,winning_label,winning_sensitivity,winning_f1
-0.8,2911,0.3586,single_architecture_threshold_sweep,logreg_tfidf@thresh,0.8,0.1791
-0.85,2242,0.2823,single_architecture_threshold_sweep,logreg_tfidf@thresh,0.8545,0.1738
-0.9,1563,0.1907,single_architecture_threshold_sweep,xgboost_sbert@thresh,0.903,0.1656
-0.95,887,0.0975,single_architecture_threshold_sweep,xgboost_sbert@thresh,0.9515,0.1587

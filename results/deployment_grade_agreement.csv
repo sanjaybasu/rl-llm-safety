@@ -1,5 +1,0 @@
-stratum,policy,n_messages,n_hazards,n_benigns,hazard_prevalence_in_stratum,share_of_total_messages
-0-1 flagging (autonomous benign),no_action,253,10,243,0.0395,0.1265
-2-3 flagging (clinician review),clinician_review,1385,94,1291,0.0679,0.6925
-4-6 flagging (clinician review),clinician_review,355,57,298,0.1606,0.1775
-7-9 flagging (autonomous escalation),escalate,7,4,3,0.5714,0.0035

@@ -1,8 +1,0 @@
-AMC stack configuration,Sensitivity,Specificity,PPV,F1,MCC,Clinical-grade?
-Component 1+3 alone (claude_opus_4_7_rag),0.218,0.918,0.193,0.204,0.128,No
-AMC stack (xgboost_sbert gate + claude_opus_4_7_rag),0.115,0.954,0.184,0.142,0.086,No
-AMC stack (logreg_tfidf gate + claude_opus_4_7_rag),0.218,0.921,0.200,0.209,0.134,No
-AMC stack (constellation gate + claude_opus_4_7_rag),0.024,0.989,0.167,0.042,0.034,No
-AMC stack (cql_reward_opt gate + claude_opus_4_7_rag),0.218,0.919,0.196,0.206,0.131,No
-AMC stack (guardrails gate + claude_opus_4_7_rag),0.024,0.992,0.210,0.043,0.046,No
-AMC stack (actionhead gate + claude_opus_4_7_rag),0.139,0.964,0.256,0.180,0.137,No
