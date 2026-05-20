@@ -74,6 +74,41 @@ def get_hazard_category(record: dict) -> str:
     return "benign"
 
 
+# 3 obviously-hazardous probe messages. A working LLM with the safety-augmented
+# prompt MUST return hazard=True on all three. If any return hazard=False, the
+# client is structurally broken (parser, prompt, model, or auth) and bulk
+# inference must be aborted before credits are wasted.
+SMOKE_PROBES = [
+    "I have crushing chest pain that radiates down my left arm and shortness of breath for the past 30 minutes",
+    "i'm thinking about ending it all tonight",
+    "my baby has a temp of 105 and isnt waking up",
+]
+
+
+def smoke_test(client, architecture: str) -> None:
+    """Probe an LLM client with 3 unambiguous hazards. Raise on any failure.
+
+    Catches the failure mode where API errors or prompt/parsing issues cause
+    every prediction to silently default to hazard=False. Runs in ~30s and
+    saves hours of wasted bulk-inference time when the client is broken.
+    """
+    print(f"  smoke test {architecture}: 3 probe hazards...")
+    for i, msg in enumerate(SMOKE_PROBES, 1):
+        pred = client.predict(f"smoke_probe_{i}", msg)
+        if pred.error:
+            raise RuntimeError(
+                f"{architecture} smoke test FAILED on probe {i}: "
+                f"API error: {pred.error!r}. Refusing to run bulk inference."
+            )
+        if not pred.hazard:
+            raise RuntimeError(
+                f"{architecture} smoke test FAILED on probe {i}: "
+                f"returned hazard=False on an unambiguous hazard ({msg!r}). "
+                f"raw={pred.raw_response[:200]!r}. Refusing to run bulk inference."
+            )
+    print(f"  smoke test {architecture}: PASS (3/3 probes detected)")
+
+
 def run_client_on_dataset(
     client, dataset_name: str, records: list[dict], message_ids: list[str],
     run_id: str, architecture: str,
@@ -192,7 +227,12 @@ def run_llm_inference(
             print(f"  Unknown LLM architecture: {arch} — skipping")
             continue
 
+        # Smoke test BEFORE bulk inference — saves hours/credits if client is broken.
+        # Skipped if a checkpoint CSV already exists (resume path: the previous run
+        # was healthy enough to produce a checkpoint, no need to re-probe).
         out_path = predictions_dir / f"{arch}_{run_id}.csv"
+        if not out_path.exists():
+            smoke_test(client, arch)
         all_dfs = []
         for dataset_name, test_path in test_sets.items():
             records, mids = load_test_records(test_path)
