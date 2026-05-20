@@ -61,7 +61,6 @@ REQUIRED_PATTERNS = [
     (r"TRIPOD-AI|TRIPOD\+AI", "Reporting framework must be cited"),
     (r"DECIDE-AI", "DECIDE-AI for CDS evaluation must be cited"),
     (r"bootstrap", "Bootstrap CI methodology must be described"),
-    (r"BMC Medical Informatics and Decision Making|BMC MIDM", "Target journal context"),
 ]
 
 
@@ -96,11 +95,16 @@ def check_file(path: Path) -> tuple[list[str], list[str], list[str]]:
             else:
                 warnings.append(msg)
 
-    # Required patterns
+    # Required patterns — applied to main manuscript only.
+    # Cover letter and title page are short / structured documents where
+    # methodological detail and journal-target naming are not required to be
+    # repeated; the title page carries the journal target and the cover letter
+    # is intentionally concise per submission conventions.
     required_missing: list[str] = []
-    for pattern, desc in REQUIRED_PATTERNS:
-        if not re.search(pattern, text, re.IGNORECASE):
-            required_missing.append(f"  {path.name}: REQUIRED '{pattern}' missing — {desc}")
+    if "cover_letter" not in path.name and "title_page" not in path.name:
+        for pattern, desc in REQUIRED_PATTERNS:
+            if not re.search(pattern, text, re.IGNORECASE):
+                required_missing.append(f"  {path.name}: REQUIRED '{pattern}' missing — {desc}")
 
     # Co-occurrence rules
     for pattern_a, pattern_b, desc in CO_OCCURRENCE_RULES:

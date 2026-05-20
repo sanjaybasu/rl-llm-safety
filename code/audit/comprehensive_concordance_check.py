@@ -365,15 +365,22 @@ def check_forbidden_patterns(drafts_dir: Path) -> tuple[bool, list[str]]:
 def check_reporting_frameworks(drafts_dir: Path) -> tuple[bool, list[str]]:
     section("Check 9: Reporting frameworks (TRIPOD-AI, DECIDE-AI, McNemar, Hochberg)")
     errors = []
-    required = {
+    # Methodological reporting patterns required in the main manuscript.
+    # The journal-target name (BMC MIDM) lives on the title page for anonymized
+    # submission and is NOT required to appear in the main text.
+    main_required = {
         "TRIPOD-AI or TRIPOD+AI": r"TRIPOD[-+]AI",
         "DECIDE-AI": r"DECIDE-AI",
         "McNemar test": r"McNemar",
         "Hochberg correction": r"Hochberg",
         "Wilson score CI": r"Wilson",
-        "BMC Medical Informatics and Decision Making": r"BMC Medical Informatics and Decision Making",
     }
-    for name in ("main_text.md", "appendix.md"):
+    # The appendix should mention the journal target (it is the supplementary
+    # file submitted to BMC MIDM and is not anonymized by convention).
+    appendix_required = dict(main_required)
+    appendix_required["BMC Medical Informatics and Decision Making"] = r"BMC Medical Informatics and Decision Making"
+
+    for name, required in (("main_text.md", main_required), ("appendix.md", appendix_required)):
         path = drafts_dir / name
         if not path.exists():
             continue
@@ -382,7 +389,6 @@ def check_reporting_frameworks(drafts_dir: Path) -> tuple[bool, list[str]]:
             present = bool(re.search(pattern, text, re.IGNORECASE))
             check(f"{name}: {label}", present)
             if not present and name == "main_text.md":
-                # Required in main only; appendix is optional
                 errors.append(f"{name}: '{label}' missing")
     return len(errors) == 0, errors
 

@@ -302,19 +302,14 @@ def render_figure3_pareto_frontier(results_dir: Path, output_dir: Path) -> Path:
     ax.text(0.85, 0.92, "Clinical-grade\ntarget zone", fontsize=10,
             color="darkgreen", ha="left", va="center", alpha=0.8)
 
-    # Single-architecture default-threshold points
+    # Single-architecture default-threshold points (no per-point labels to avoid overlap;
+    # architectures are identified in legend + Table 2)
     m_path = results_dir / "metrics_canonical.csv"
     if m_path.exists():
         m = pd.read_csv(m_path)
         rw = m[m["dataset"] == "realworld_n2000"]
         ax.scatter(rw["specificity"], rw["sensitivity"], s=80, marker="o",
                    color="steelblue", alpha=0.8, label="Single architecture (default threshold)", zorder=3)
-        # Annotate each
-        for _, r in rw.iterrows():
-            ax.annotate(ARCH_DISPLAY.get(r["architecture"], r["architecture"])[:18],
-                        (r["specificity"], r["sensitivity"]),
-                        xytext=(3, 3), textcoords="offset points",
-                        fontsize=7, alpha=0.7)
 
     # Cascade Pareto frontier (highlight in different color)
     pf_path = results_dir / "cascade_pareto.csv"
