@@ -359,14 +359,13 @@ def render_figure3_pareto_frontier(results_dir: Path, output_dir: Path) -> Path:
     ax.set_ylim(-0.02, 1.02)
     total = n_single + n_cascade + n_hard + n_soft + n_consensus
     ax.set_title(
-        f"Receiver operating characteristic envelope: {total} configurations across 5 strategy classes\n"
-        f"No configuration reaches the clinical-grade target zone (top-right)"
+        f"Receiver operating characteristic envelope: {total} configurations across 5 strategy classes"
     )
-    # Move legend OUTSIDE the plot to avoid covering data points in the upper-left
-    # (where high-recall low-precision architectures like LogReg+TF-IDF and the
-    # reward-optimized CQL controller live).
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=9,
-              framealpha=1.0, borderaxespad=0)
+    # Place legend BELOW the plot in two rows so that (a) no data points are
+    # covered and (b) the green "Clinical-grade target zone" text in the
+    # upper-right plot area is not clipped by a side legend.
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.10), ncol=3,
+              fontsize=9, framealpha=1.0, borderaxespad=0)
     ax.grid(True, alpha=0.3)
     out_path = output_dir / "figure3_pareto_frontier.png"
     plt.tight_layout()
