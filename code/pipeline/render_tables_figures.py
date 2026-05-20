@@ -410,7 +410,7 @@ def render_figure2_action_recommendations(predictions_dir: Path, output_dir: Pat
 
     df = pd.DataFrame(rows).sort_values("appropriate", ascending=True)
     names = [ARCH_DISPLAY.get(a, a) for a in df["arch"]]
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(11, 5))
     ax.barh(names, df["under_triage"] * 100, color="#d62728", label="Under-triage")
     ax.barh(names, df["appropriate"] * 100, left=df["under_triage"] * 100,
             color="#2ca02c", label="Appropriate")
@@ -420,7 +420,8 @@ def render_figure2_action_recommendations(predictions_dir: Path, output_dir: Pat
     ax.set_xlabel("Proportion of test messages (%)")
     ax.set_title("Action-recommendation appropriateness (real-world n=2,000)")
     ax.set_xlim(0, 100)
-    ax.legend(loc="lower right")
+    # Place legend outside the plot area so it does not overlap the bars
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), framealpha=1.0, borderaxespad=0)
     for s in ["top", "right"]:
         ax.spines[s].set_visible(False)
     fig.tight_layout()
@@ -877,15 +878,18 @@ def render_figureS3_category_sensitivity(results_dir: Path, output_dir: Path) ->
     pivot = cs.pivot_table(index="hazard_category", columns="architecture",
                             values="sensitivity", aggfunc="first")
     pivot.columns = [ARCH_DISPLAY.get(c, c) for c in pivot.columns]
-    fig, ax = plt.subplots(figsize=(11, 6))
-    pivot.plot(kind="bar", ax=ax, width=0.85, edgecolor="black", linewidth=0.3)
+    fig, ax = plt.subplots(figsize=(13, 6))
+    pivot.plot(kind="bar", ax=ax, width=0.85, edgecolor="black", linewidth=0.3, legend=False)
     ax.axhline(0.80, color="darkgreen", linestyle="--", linewidth=1.2, alpha=0.7,
                label="Clinical-grade sensitivity floor (0.80)")
     ax.set_xlabel("Hazard category")
     ax.set_ylabel("Sensitivity")
     ax.set_ylim(0, 1.05)
     ax.set_title("Per-architecture sensitivity by hazard category (real-world test set)")
-    ax.legend(loc="upper right", fontsize=8, ncol=2)
+    # Move legend outside the plot area to the right so it doesn't cover any bars
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.02, 1.0),
+              fontsize=8, framealpha=1.0, borderaxespad=0)
     plt.xticks(rotation=30, ha="right")
     plt.tight_layout()
     plt.savefig(out_path, dpi=200, bbox_inches="tight"); plt.close()
