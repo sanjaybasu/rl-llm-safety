@@ -37,10 +37,14 @@ class ClaudeOpusClient(LLMClient):
         reraise=True,
     )
     def _call(self, system_prompt: str, message: str) -> str:
+        # Claude Opus 4.7 deprecated the `temperature` parameter (the API
+        # returns a 400 invalid_request_error if `temperature` is passed).
+        # Default sampling is highly consistent for this binary-classification
+        # task with a short structured-JSON output; observed cross-run
+        # variability in pilot diagnostics was at the threshold-irrelevant level.
         response = self._client.messages.create(
             model=self.model_version,
-            max_tokens=512,
-            temperature=0.0,
+            max_tokens=1024,
             system=system_prompt,
             messages=[{"role": "user", "content": message}],
         )

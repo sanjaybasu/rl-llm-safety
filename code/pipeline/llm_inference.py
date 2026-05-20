@@ -131,8 +131,21 @@ def run_client_on_dataset(
             "model_version": pred.model_version,
             "run_id": run_id,
             "inference_time_s": round(pred.inference_time_s, 4),
+            "error": pred.error or "",  # exposes silent API failures
         })
         n_processed += 1
+        # Fail fast if the first batch is uniformly errored — silent failures
+        # like the temperature-deprecation bug masqueraded as data for 2,041
+        # messages in the prior run. Better to crash than to keep burning credits.
+        if n_processed == 50 and n_skipped == 0:
+            recent = rows[-50:]
+            err_rate = sum(1 for x in recent if x.get("error")) / len(recent)
+            if err_rate > 0.5:
+                raise RuntimeError(
+                    f"{architecture}/{dataset_name}: {err_rate:.0%} of first 50 "
+                    f"predictions errored. Sample error: {recent[-1].get('error')!r}. "
+                    "Aborting before more credits are wasted."
+                )
 
         # Periodic checkpoint
         if checkpoint_path and (n_processed % checkpoint_every == 0):
