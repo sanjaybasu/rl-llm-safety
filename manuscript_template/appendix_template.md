@@ -1,6 +1,6 @@
 # Multimedia Appendix 1 — Supplementary Methods, Tables, and Figures
 
-This appendix accompanies the main manuscript titled "AI safety evaluation in an underrepresented Medicaid population: real-world performance of clinical decision support and frontier language models on patient messaging triage."
+This appendix accompanies the main manuscript titled "AI safety evaluation in an underrepresented Medicaid population: real-world performance of clinical decision support and frontier language models on patient messaging triage," submitted to BMC Medical Informatics and Decision Making (BMC MIDM).
 
 Every numerical value in this appendix renders from canonical CSVs at build time via `code/pipeline/manuscript_renderer.py`. No hand-typed numbers.
 
