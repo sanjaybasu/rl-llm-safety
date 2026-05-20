@@ -18,22 +18,25 @@ Resubmit the JMIR-rejected manuscript (decision E2, 2026-05-14) to **BMC Medical
 |---|---|---|
 | **A. Literature review** | ✅ Complete | `notebooks/rl_vs_llm_safety_v3/lit_review/evidence_map.md` (16 verified citations + gap claim) |
 | **B. Design lock** | ✅ Complete | `notebooks/rl_vs_llm_safety_v3/protocol/protocol.md` (6-config matrix, TRIPOD+AI + DECIDE-AI) |
-| **C. Pipeline execution** | 🟡 In flight (re-run) | Modal app `ap-KZ1pcE...`, Claude at 601/2042 + auto Phase 9-14 |
-| **C.5 Manuscript rendering** | 🟡 In flight | Modal app `ap-glFWuC...` polling for Phase 12 → auto Phase 13 |
-| **D. Audit + concordance** | ⏳ Pending | Will run after Phase 13 lands drafts on Modal volume |
-| **E. Submission** | ⏳ Pending | Pull drafts → cold-read → BMC MIDM portal |
+| **C. Pipeline execution** | ✅ Complete | Modal volume `rl-llm-safety-v3-predictions:canonical/*_3158b720*.csv` (9 architectures × 2 datasets = 18,369 predictions) |
+| **C.5 Manuscript rendering** | ✅ Complete | `results_modal_pull/drafts/{main_text,cover_letter,appendix}.md` + `supplementary/multimedia_appendix_2.zip` |
+| **D. Audit + concordance** | ✅ Complete | All 9 strict concordance checks pass with 0 errors, 0 warnings |
+| **E. Submission** | ⏳ Pending | Cold-read → fill author byline → upload to BMC MIDM portal |
 
 ---
 
 ## What is actively running on Modal right now
 
-| App ID | Function | Expected duration | What it produces |
-|---|---|---|---|
-| `ap-KZ1pcEAcDVl7CQpz9zPKHk` | `resume_pipeline` | ~25-30 min remaining | Claude CSV → Phase 9 metrics → Phase 12 tables/figures → Phase 14 audit |
-| `ap-glFWuCAiRVhuS9l1rHEYOz` | `wait_and_render` | Triggers when Phase 12 lands; runs ~2 min | `drafts/{main_text,cover_letter,appendix}.md` + `supplementary/multimedia_appendix_2.zip` |
-| `ap-lIO7GUwSOBiXAj03UpdtCY` | Deployed app (idle) | n/a | Function definitions; not consuming resources |
+**Nothing.** All ephemeral pipeline apps have stopped successfully:
 
-Active monitor (local, dies on laptop restart): `b5a1tbj4a` (Phase 6+render v5).
+| App ID | Function | Final state |
+|---|---|---|
+| `ap-KZ1pcEAcDVl7CQpz9zPKHk` | `resume_pipeline` | ✅ Stopped successfully — produced all 9 architecture × 2 dataset CSVs + metrics |
+| `ap-glFWuCAiRVhuS9l1rHEYOz` | `wait_and_render` | ✅ Stopped after auto-triggering Phase 13 |
+| `ap-UhitbamvtyEvsJwQ9VFGQn` | `phase13_render_manuscript` (manual re-run after template patches) | ✅ Stopped successfully |
+| `ap-lIO7GUwSOBiXAj03UpdtCY` | Deployed app (idle) | Function definitions; not consuming resources |
+
+Local monitor `b5a1tbj4a` will keep watching but its job is done.
 
 ---
 
@@ -161,6 +164,8 @@ Active monitor (local, dies on laptop restart): `b5a1tbj4a` (Phase 6+render v5).
 | 2026-05-19 | **CLAUDE BUG SURFACED**: temperature deprecated for `claude-opus-4-7`; all 2,041 predictions were silent errors |
 | 2026-05-19 | Claude bug fixed (commit `1ef4cfb`); broken CSV cleaned from volume; re-run launched |
 | 2026-05-19 | Smoke test pre-flight + LESSONS_LEARNED.md added (commit `6f03e30`) for future protection |
+| 2026-05-19 | Phase 6 re-run completed cleanly with fixed Claude client (Claude 2041/2041 + Gemini skip-resumed); Phase 9-12-14 + auto Phase 13 chain produced full draft set |
+| 2026-05-19 | Strict concordance check found 4 final errors (orphan ref [9], cover-letter missing Wilson/Hochberg/multi-turn) — all patched in templates (`2d6f6e4`), Phase 13 re-run, **all 9 strict checks now pass with 0 errors 0 warnings** |
 
 ---
 
