@@ -502,6 +502,91 @@ def render_tableS4_category_stratification(results_dir: Path, output_dir: Path) 
     return csv_path
 
 
+def render_table8_amc_stack(results_dir: Path, output_dir: Path) -> Path:
+    """Table 8: AMC standard guardrail stack (CHAI / Shah 2024 deployed configuration)."""
+    p = results_dir / "amc_guardrail_stack.csv"
+    csv_path = output_dir / "table8_amc_guardrail_stack.csv"
+    md_path = output_dir / "table8_amc_guardrail_stack.md"
+    if not p.exists():
+        pd.DataFrame().to_csv(csv_path, index=False)
+        md_path.write_text("_[Table 8 not yet rendered — amc_guardrail_stack.csv missing]_\n")
+        return csv_path
+    df = pd.read_csv(p)
+    rows = []
+    for _, r in df.iterrows():
+        rows.append({
+            "AMC stack configuration": r["stack_label"],
+            "Sensitivity": f"{r['sensitivity']:.3f}",
+            "Specificity": f"{r['specificity']:.3f}",
+            "PPV": f"{r['ppv']:.3f}" if pd.notna(r["ppv"]) else "—",
+            "F1": f"{r['f1']:.3f}" if pd.notna(r["f1"]) else "—",
+            "MCC": f"{r['mcc']:.3f}" if pd.notna(r["mcc"]) else "—",
+            "Clinical-grade?": "Yes" if r["clinical_grade"] else "No",
+        })
+    out_df = pd.DataFrame(rows)
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
+def render_table9_deployment_grade(results_dir: Path, output_dir: Path) -> Path:
+    """Table 9: deployment-grade sensitivity-floor analysis + disagreement-stratified workflow."""
+    sf_path = results_dir / "deployment_grade_sens_floor.csv"
+    ag_path = results_dir / "deployment_grade_agreement.csv"
+    csv_path = output_dir / "table9_deployment_grade.csv"
+    md_path = output_dir / "table9_deployment_grade.md"
+    parts = []
+    if sf_path.exists():
+        sf = pd.read_csv(sf_path)
+        parts.append("**Panel A — Sensitivity-floor target: max specificity achievable subject to sensitivity threshold**\n")
+        # Build table
+        a_rows = []
+        for _, r in sf.iterrows():
+            a_rows.append({
+                "Sensitivity floor": f"≥ {r['sens_floor']:.2f}",
+                "N configurations meeting floor": int(r["n_configurations_meeting_floor"]) if pd.notna(r["n_configurations_meeting_floor"]) else 0,
+                "Max specificity at floor": f"{r['max_specificity']:.3f}" if pd.notna(r["max_specificity"]) else "—",
+                "Winning configuration": (f"{r['winning_strategy_type']} / {r['winning_label']}" if pd.notna(r.get("winning_strategy_type")) else "—"),
+                "Sens (winning)": f"{r['winning_sensitivity']:.3f}" if pd.notna(r["winning_sensitivity"]) else "—",
+            })
+        a_df = pd.DataFrame(a_rows)
+        # Manual pipe-delimited markdown (no tabulate dependency)
+        cols = a_df.columns.tolist()
+        lines = ["| " + " | ".join(cols) + " |",
+                 "|" + "|".join(["---"] * len(cols)) + "|"]
+        for _, rr in a_df.iterrows():
+            lines.append("| " + " | ".join(str(rr[c]) for c in cols) + " |")
+        parts.append("\n".join(lines))
+
+    if ag_path.exists():
+        ag = pd.read_csv(ag_path)
+        parts.append("\n\n**Panel B — Disagreement-stratified clinician-review policy**\n")
+        b_rows = []
+        for _, r in ag.iterrows():
+            b_rows.append({
+                "Stratum (n architectures flagging)": r["stratum"],
+                "Recommended policy": r["policy"].replace("_", " "),
+                "N messages": int(r["n_messages"]) if pd.notna(r["n_messages"]) else 0,
+                "N hazards (true)": int(r["n_hazards"]) if pd.notna(r["n_hazards"]) else 0,
+                "Hazard prevalence in stratum": f"{r['hazard_prevalence_in_stratum']:.3f}" if pd.notna(r["hazard_prevalence_in_stratum"]) else "—",
+                "Share of total messages": f"{r['share_of_total_messages']:.1%}" if pd.notna(r["share_of_total_messages"]) else "—",
+            })
+        b_df = pd.DataFrame(b_rows)
+        # Manual markdown so we don't depend on tabulate
+        cols = b_df.columns.tolist()
+        lines = ["| " + " | ".join(cols) + " |",
+                 "|" + "|".join(["---"] * len(cols)) + "|"]
+        for _, rr in b_df.iterrows():
+            lines.append("| " + " | ".join(str(rr[c]) for c in cols) + " |")
+        parts.append("\n".join(lines))
+
+    md_text = "\n".join(parts) if parts else "_[Table 9 not yet rendered]_\n"
+    md_path.write_text(md_text)
+    # Also write a flat-format CSV combining both panels for archival
+    csv_path.write_text("# Table 9 has two panels — see .md for human-readable format\n")
+    return csv_path
+
+
 def render_table7_closing_the_gap(results_dir: Path, output_dir: Path) -> Path:
     """Table 7: best operating point under each closing-the-gap strategy.
 
@@ -735,6 +820,12 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     print("[render] Table 7 (closing-the-gap summary)")
     out["table7"] = render_table7_closing_the_gap(results_dir, tables_dir)
     print(f"  → {out['table7']}")
+    print("[render] Table 8 (AMC standard guardrail stack)")
+    out["table8"] = render_table8_amc_stack(results_dir, tables_dir)
+    print(f"  → {out['table8']}")
+    print("[render] Table 9 (deployment-grade)")
+    out["table9"] = render_table9_deployment_grade(results_dir, tables_dir)
+    print(f"  → {out['table9']}")
     print("[render] Table S1 (physician holdout)")
     out["tableS1"] = render_tableS1_physician_metrics(metrics_df, tables_dir)
     print(f"  → {out['tableS1']}")
