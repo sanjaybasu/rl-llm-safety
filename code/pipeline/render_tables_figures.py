@@ -390,6 +390,137 @@ def render_table5_cascade_pareto(results_dir: Path, output_dir: Path) -> Path:
     return csv_path
 
 
+def render_table7_closing_the_gap(results_dir: Path, output_dir: Path) -> Path:
+    """Table 7: best operating point under each closing-the-gap strategy.
+
+    Synthesizes results from multiple analyses (single architecture, ensemble,
+    cascade, threshold optimization, multi-LLM consensus, RAG) into one
+    summary table showing the best balanced point under each strategy. Allows
+    reviewers to answer 'did any combination close the gap?' at-a-glance.
+    """
+    rows = []
+    target_row = {
+        "Strategy": "**Clinical-grade target**",
+        "Best balanced (sens, spec)": "≥0.80, ≥0.80",
+        "Best F1": "—",
+        "Sens at best F1": "—",
+        "Spec at best F1": "—",
+        "Clinical-grade reached?": "Target",
+    }
+
+    # 1. Best single architecture (from metrics_canonical at default thresholds)
+    m_path = results_dir / "metrics_canonical.csv"
+    if m_path.exists():
+        m = pd.read_csv(m_path)
+        rw = m[m["dataset"] == "realworld_n2000"].copy()
+        rw["balanced"] = rw[["sensitivity", "specificity"]].min(axis=1)
+        if not rw.empty:
+            best_bal = rw.loc[rw["balanced"].idxmax()]
+            best_f1 = rw.loc[rw["f1"].idxmax()]
+            rows.append({
+                "Strategy": "Single architecture (default threshold)",
+                "Best balanced (sens, spec)": f"{best_bal['sensitivity']:.3f}, {best_bal['specificity']:.3f} ({ARCH_DISPLAY.get(best_bal['architecture'], best_bal['architecture'])})",
+                "Best F1": f"{best_f1['f1']:.3f}",
+                "Sens at best F1": f"{best_f1['sensitivity']:.3f}",
+                "Spec at best F1": f"{best_f1['specificity']:.3f}",
+                "Clinical-grade reached?": "No",
+            })
+
+    # 2. Best single architecture (threshold-optimized)
+    th_path = results_dir / "threshold_optimized.csv"
+    if th_path.exists():
+        th = pd.read_csv(th_path)
+        if not th.empty:
+            th["balanced"] = th[["closest_to_clinical_grade_sens",
+                                  "closest_to_clinical_grade_spec"]].min(axis=1)
+            best_bal = th.loc[th["balanced"].idxmax()]
+            best_f1 = th.loc[th["f1_max"].idxmax()]
+            rows.append({
+                "Strategy": "Single architecture (threshold-optimized)",
+                "Best balanced (sens, spec)": f"{best_bal['closest_to_clinical_grade_sens']:.3f}, {best_bal['closest_to_clinical_grade_spec']:.3f} ({ARCH_DISPLAY.get(best_bal['architecture'], best_bal['architecture'])})",
+                "Best F1": f"{best_f1['f1_max']:.3f}",
+                "Sens at best F1": f"{best_f1['f1_max_sens']:.3f}",
+                "Spec at best F1": f"{best_f1['f1_max_spec']:.3f}",
+                "Clinical-grade reached?": "Yes" if th["clinical_grade_reachable"].any() else "No",
+            })
+
+    # 3. Best ensemble (hard-voting + soft-voting all 9 architectures)
+    ens_path = results_dir / "ensemble_results.csv"
+    if ens_path.exists():
+        ens = pd.read_csv(ens_path)
+        if not ens.empty:
+            ens["balanced"] = ens[["sensitivity", "specificity"]].min(axis=1)
+            best_bal = ens.loc[ens["balanced"].idxmax()]
+            best_f1 = ens.loc[ens["f1"].idxmax()]
+            rows.append({
+                "Strategy": "Ensemble of 9 architectures (213 configurations evaluated)",
+                "Best balanced (sens, spec)": f"{best_bal['sensitivity']:.3f}, {best_bal['specificity']:.3f} ({best_bal['rule']})",
+                "Best F1": f"{best_f1['f1']:.3f}",
+                "Sens at best F1": f"{best_f1['sensitivity']:.3f}",
+                "Spec at best F1": f"{best_f1['specificity']:.3f}",
+                "Clinical-grade reached?": "Yes" if ens["clinical_grade"].any() else "No",
+            })
+
+    # 4. Best cascade (from cascade_matrix)
+    cas_path = results_dir / "cascade_matrix.csv"
+    if cas_path.exists():
+        cas = pd.read_csv(cas_path)
+        rw_cas = cas[(cas["dataset"] == "realworld_n2000") & (cas["stage1"] < cas["stage2"])].copy()
+        if not rw_cas.empty:
+            rw_cas["balanced"] = rw_cas[["sensitivity", "specificity"]].min(axis=1)
+            best_bal = rw_cas.loc[rw_cas["balanced"].idxmax()]
+            best_f1 = rw_cas.loc[rw_cas["f1"].idxmax()]
+            cg = ((rw_cas["sensitivity"] >= 0.80) & (rw_cas["specificity"] >= 0.80)).any()
+            rows.append({
+                "Strategy": "Two-stage cascade (72 configurations evaluated)",
+                "Best balanced (sens, spec)": f"{best_bal['sensitivity']:.3f}, {best_bal['specificity']:.3f} ({ARCH_DISPLAY.get(best_bal['stage1'], best_bal['stage1'])} × {ARCH_DISPLAY.get(best_bal['stage2'], best_bal['stage2'])})",
+                "Best F1": f"{best_f1['f1']:.3f}",
+                "Sens at best F1": f"{best_f1['sensitivity']:.3f}",
+                "Spec at best F1": f"{best_f1['specificity']:.3f}",
+                "Clinical-grade reached?": "Yes" if cg else "No",
+            })
+
+    # 5. Multi-LLM consensus
+    mll_path = results_dir / "multi_llm_consensus.csv"
+    if mll_path.exists():
+        mll = pd.read_csv(mll_path)
+        if not mll.empty:
+            mll["balanced"] = mll[["sensitivity", "specificity"]].min(axis=1)
+            best_bal = mll.loc[mll["balanced"].idxmax()]
+            best_f1 = mll.loc[mll["f1"].idxmax()]
+            rows.append({
+                "Strategy": "Multi-LLM consensus (Claude + Gemini)",
+                "Best balanced (sens, spec)": f"{best_bal['sensitivity']:.3f}, {best_bal['specificity']:.3f} ({best_bal['rule']})",
+                "Best F1": f"{best_f1['f1']:.3f}",
+                "Sens at best F1": f"{best_f1['sensitivity']:.3f}",
+                "Spec at best F1": f"{best_f1['specificity']:.3f}",
+                "Clinical-grade reached?": "Yes" if mll["clinical_grade"].any() else "No",
+            })
+
+    # 6. RAG (if present in metrics_canonical)
+    if m_path.exists():
+        m = pd.read_csv(m_path)
+        rag = m[(m["dataset"] == "realworld_n2000") & (m["architecture"].str.contains("rag", na=False))]
+        if not rag.empty:
+            row = rag.iloc[0]
+            rows.append({
+                "Strategy": "Retrieval-augmented LLM (RAG over 1,280 training examples)",
+                "Best balanced (sens, spec)": f"{row['sensitivity']:.3f}, {row['specificity']:.3f}",
+                "Best F1": f"{row['f1']:.3f}",
+                "Sens at best F1": f"{row['sensitivity']:.3f}",
+                "Spec at best F1": f"{row['specificity']:.3f}",
+                "Clinical-grade reached?": "Yes" if (row["sensitivity"] >= 0.80 and row["specificity"] >= 0.80) else "No",
+            })
+
+    rows.insert(0, target_row)
+    out_df = pd.DataFrame(rows)
+    csv_path = output_dir / "table7_closing_the_gap.csv"
+    md_path = output_dir / "table7_closing_the_gap.md"
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
 def render_table6_threshold_optimized(results_dir: Path, output_dir: Path) -> Path:
     """Table 6: post-hoc threshold optimization — F1-max, MCC-max, clinical-grade reachability."""
     th_path = results_dir / "threshold_optimized.csv"
@@ -489,6 +620,9 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     print("[render] Table 6 (threshold optimization)")
     out["table6"] = render_table6_threshold_optimized(results_dir, tables_dir)
     print(f"  → {out['table6']}")
+    print("[render] Table 7 (closing-the-gap summary)")
+    out["table7"] = render_table7_closing_the_gap(results_dir, tables_dir)
+    print(f"  → {out['table7']}")
     print("[render] Table S1 (physician holdout)")
     out["tableS1"] = render_tableS1_physician_metrics(metrics_df, tables_dir)
     print(f"  → {out['tableS1']}")
