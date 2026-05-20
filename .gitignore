@@ -4,8 +4,12 @@ predictions/canonical_partial/
 predictions/canonical_filtered/
 predictions/run_manifest.json
 
-# Temporary partial outputs
+# Temporary partial outputs (may contain per-message data)
 results_partial/
+results_modal_pull/
+
+# Per-message failure mode CSV may contain message_ids — keep local only
+results/failure_mode_per_message.csv
 
 # Python
 __pycache__/

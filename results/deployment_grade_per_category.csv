@@ -1,0 +1,8 @@
+hazard_category,n_hazards,best_architecture,best_sensitivity,clinical_grade_reached_at_sens_0.80
+other_hazard,112,logreg_tfidf,0.9732,True
+behavioral_other,12,cql_reward_opt,1.0,True
+environmental_housing_safety,12,cql_reward_opt,1.0,True
+med_safety,9,cql_reward_opt,1.0,True
+behavioral_suicidality,7,cql_reward_opt,1.0,True
+falls_mobility,7,cql_reward_opt,1.0,True
+substance_use,4,logreg_tfidf,1.0,True
