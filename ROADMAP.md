@@ -23,8 +23,9 @@ Resubmit the JMIR-rejected manuscript (decision E2, 2026-05-14) to **BMC Medical
 | **D. Audit + concordance** | ✅ Complete | All 9 strict concordance checks pass with 0 errors, 0 warnings |
 | **D.5 Cascade + threshold + ensemble + multi-LLM analyses** | ✅ Complete | Tables 5, 6, 7 + `cascade_matrix.csv`, `threshold_optimized.csv`, `ensemble_results.csv`, `multi_llm_consensus.csv` |
 | **D.6 Closing-the-gap lit review** | ✅ Complete | `notebooks/rl_vs_llm_safety_v3/lit_review/closing_the_gap.md` (1,920 words) |
-| **D.7 RAG (k-NN over training set)** | 🟡 In flight (Modal) | `claude_opus_4_7_rag_3158b720*.csv` on Modal volume; ETA ~9-12h |
-| **E. Submission** | ⏳ Pending RAG completion + final cold-read | Cold-read → upload to BMC MIDM portal |
+| **D.7 RAG (k-NN over training set)** | ✅ Complete | Striking dissociation: sens 1.000 on physician scenarios; 0.218 on real-world Medicaid |
+| **D.8 Full audit re-run with RAG integrated** | ✅ Complete | 10 architectures × 2 datasets; 45 McNemar pairs; all 9 strict checks pass |
+| **E. Submission** | ⏳ Pending final cold-read | Cold-read → fill author byline / DOI / reviewer emails → upload to BMC MIDM portal |
 
 ---
 
@@ -181,6 +182,9 @@ Local monitor `b5a1tbj4a` will keep watching but its job is done.
 | 2026-05-19 | Table 7 added: closing-the-gap synthesis showing best operating point under each strategy (single architecture default + threshold-optimized, ensemble, cascade, multi-LLM, RAG). At-a-glance reviewer answer: 0/N strategies reach clinical-grade. (`9d12e30`) |
 | 2026-05-19 | RAG launched detached on Modal (`ap-NeCvkVtRrpfTWflAzX2vUd`); monitor `b4cv3wod3` armed. Expected ~9-12h wall-clock; will fire `[RAG-EXIT]` event when complete. After completion: re-run Phase 13 to integrate RAG into Tables 2, 7; pull drafts; re-audit; commit. |
 | 2026-05-19 | Appendix C.4c documents closing-the-gap intervention methodology; Phase 13 (Modal) now invokes ensemble + multi-LLM analyses alongside cascade + threshold. All 9 strict comprehensive concordance checks pass with 0 errors. (`6476999`) |
+| 2026-05-19 | Table S4 added (per-architecture sensitivity by hazard category, replacing equity placeholder we cannot fulfill). Behavioral suicidality is the highest-sens category across architectures (mean 0.540); other_hazard residual is the lowest (mean 0.321). |
+| 2026-05-19 | Figure 3 added (ROC envelope across all strategies on real-world test set; clinical-grade target zone shaded; visual proof no strategy reaches the zone). Figure 2 caption section added. |
+| 2026-05-19 | RAG completed on Modal (2042/2042). **Striking dissociation:** Claude+RAG attains sens 1.000 on physician 41-case set (caught all 27 hazards, F1 0.900) but sens 0.218 on real-world Medicaid (DOWN from Claude zero-shot 0.297). Retrieval closes the gap on prototypical inputs and FAILS to close it on OOD Medicaid messaging. This is the most-publishable single insight: RAG works when the test population matches the retrieval corpus distribution; the population-gap finding holds even under the literature-review top recommendation. All Phase 9-13 re-run, metrics_canonical updated, mcnemar now 45 pairwise comparisons (10 architectures). All 9 strict concordance checks pass. (24 commits on main) |
 
 ---
 
