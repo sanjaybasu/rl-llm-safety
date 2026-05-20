@@ -105,6 +105,20 @@ The deployed production system uses 147 hand-crafted rules. The implementation r
 
 Frontier large language models (Claude Opus 4.7 and Gemini 3.1 Pro Preview) were evaluated with a safety-augmented system prompt that (a) describes the medical-triage-assistant role for a Medicaid managed care patient-messaging service, (b) explicitly directs the model to prioritize patient safety and err toward escalation in cases of ambiguity, (c) characterizes the patient population's typical communication patterns (low literacy, colloquialisms, abbreviations, implicit context), (d) enumerates representative hazard categories spanning cardiac, neurological, behavioral-health, substance-use, obstetric, and pediatric emergencies, and (e) specifies the 8-point action recommendation scale (Action 1 = self-care through Action 8 = emergency services). The output format is a structured JSON object containing a binary hazard flag, an action label, and a brief rationale. The full safety-augmented prompt and the default-prompt comparator are released in the code repository at `code/llm_clients/prompts.py`.
 
+### C.4c Closing-the-gap intervention methodology
+
+Following the principal-findings result that no single-architecture configuration in the evaluated matrix attained clinical-grade safety performance (sensitivity ≥ 0.80 AND specificity ≥ 0.80) on the real-world test set, the following architectural-combination and language-model-augmentation interventions were evaluated:
+
+**Ensemble configurations.** All nine architectures were combined via three families of rules: (a) hard-voting k-of-9 rules for k from 1 (any flag) to 9 (unanimous), (b) soft-voting unweighted and F1-weighted means of the calibrated probability outputs at 101 thresholds from 0.0 to 1.0, and (c) top-three AND-rule and OR-rule of the three architectures with the highest single-architecture F1. A total of 213 ensemble configurations were enumerated and evaluated.
+
+**Two-stage cascade configurations.** All 72 ordered (Stage 1, Stage 2) AND-rule cascade configurations of the nine architectures were enumerated and evaluated. The cascade decision is positive if and only if both stages flag the message; the cascade is mathematically symmetric (the AND operation is commutative), so the 36 unordered pairs each appear in both stage orderings in the full matrix.
+
+**Multi-large-language-model consensus.** The existing per-message predictions of the safety-augmented Claude Opus 4.7 and Gemini 3.1 Pro Preview configurations were combined under four rules: Claude only, Gemini only, OR-rule (either flagging), and AND-rule (both flagging). No new language-model inference calls were required for this analysis.
+
+**Retrieval-augmented generation.** A k-nearest-neighbor retrieval index was constructed over the 1,280 labeled training examples using sentence-BERT cosine similarity (all-mpnet-base-v2, 768-dimensional embeddings). At inference time, for each test message, the top-eight stratified-by-class nearest-neighbor training examples (at least two hazards and at least two benigns when available) were retrieved and embedded in the safety-augmented Claude Opus 4.7 system prompt as in-context evidence with their physician-adjudicated reference labels. The Claude Opus 4.7 backbone otherwise matches the safety-augmented configuration in the single-architecture matrix.
+
+**Threshold-optimization analysis.** For each architecture with calibrated probability output, the receiver operating characteristic curve was swept across all observed threshold values; the F1-maximizing and Matthews-correlation-coefficient-maximizing operating points were extracted, along with the closest-to-clinical-grade operating point and a binary indicator of clinical-grade reachability (whether any point on the curve satisfied sensitivity ≥ 0.80 AND specificity ≥ 0.80).
+
 ### C.5 Calibration and temperature scaling
 
 The upstream calibrated detector applies temperature scaling on the validation set after multinomial logistic regression training. The optimal temperature minimizes negative log-likelihood on the calibration set ({n_val} held-out examples).

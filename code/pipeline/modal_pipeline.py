@@ -761,6 +761,27 @@ def phase13_render_manuscript(run_id: str) -> dict:
         "--output", str(results_dir / "threshold_optimized.csv"),
     ], check=True)
 
+    # 2b.3 Ensemble analysis — produces ensemble_results.csv (213 configurations).
+    print(f"  [2b.3/5] Ensemble analysis (213 configurations)...")
+    subprocess.run([
+        "python3", f"{pipeline}/ensemble_analysis.py",
+        "--predictions-dir", str(filtered_dir),
+        "--results-dir", str(results_dir),
+    ], check=True)
+
+    # 2b.4 Multi-LLM consensus — produces multi_llm_consensus.csv (4 rules).
+    # Tolerates missing LLM predictions (e.g., if RAG not yet present, only
+    # Claude + Gemini are analyzed).
+    print(f"  [2b.4/5] Multi-LLM consensus analysis...")
+    try:
+        subprocess.run([
+            "python3", f"{pipeline}/multi_llm_consensus.py",
+            "--predictions-dir", str(filtered_dir),
+            "--results-dir", str(results_dir),
+        ], check=True)
+    except Exception as e:
+        print(f"    Multi-LLM consensus skipped ({e})")
+
     # 2c. Re-render tables/figures so Tables 5 + S3 (cascade) are included.
     # The render_tables_figures CLI already ran during Phase 12 against the
     # un-filtered predictions volume; re-run here against the filtered set so
