@@ -349,3 +349,15 @@ None.
 {figure1_caption_block}
 
 *Caption: Each architecture's sensitivity on the physician-scripted 41-case comparison set is plotted against its sensitivity on the held-out {n_total}-message real-world test set. The diagonal indicates equal performance across populations; architectures below the diagonal lose sensitivity when moving from the physician comparison scenarios to the real-world Medicaid messaging population. Error bars reflect Wilson 95% confidence intervals.*
+
+### Figure 2. Action recommendation appropriateness on the real-world test set, by architecture.
+
+{figure2_caption_block}
+
+*Caption: Stacked-bar chart of the proportion of recommendations classified as appropriate (matching the physician-adjudicated reference action), under-triage (recommending a less urgent action than the reference), or over-triage (recommending a more urgent action) on the 8-point ordinal action scale, on the real-world test set.*
+
+### Figure 3. Receiver operating characteristic envelope across all evaluated strategies on the real-world test set.
+
+{figure3_caption_block}
+
+*Caption: Each strategy is plotted as one or more (specificity, sensitivity) points on the real-world test set: single-architecture default-threshold operating points (circles), two-stage cascade Pareto frontier (squares), hard-voting k-of-9 ensemble configurations (triangles), best soft-voting ensemble (star), and multi-large-language-model consensus rules (diamonds). The clinical-grade target zone (sensitivity ≥ 0.80 AND specificity ≥ 0.80) is shaded in the top-right of the figure. No strategy reaches the clinical-grade target zone — the structural finding of this study, that no combination of currently-evaluated architectures and ensemble or cascade strategies is deployable as an autonomous single-stage screen on this Medicaid messaging population.*

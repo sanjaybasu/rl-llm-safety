@@ -285,6 +285,87 @@ def render_figure1_sens_change(delta_df: pd.DataFrame, output_dir: Path) -> Path
     return out_path
 
 
+def render_figure3_pareto_frontier(results_dir: Path, output_dir: Path) -> Path:
+    """Figure 3: sensitivity vs specificity Pareto envelope across all strategies.
+
+    Single high-impact figure showing every strategy as a (sens, spec) point with
+    the clinical-grade target zone shaded. Visual proof that no strategy reaches
+    the target zone — the structural finding of the paper.
+    """
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(8, 7))
+
+    # Shade clinical-grade target region (top-right quadrant ≥0.80, ≥0.80)
+    ax.axhspan(0.80, 1.0, xmin=0.80, xmax=1.0, color="green", alpha=0.10, zorder=0)
+    ax.axhline(0.80, color="green", linestyle=":", linewidth=1.0, alpha=0.5, zorder=1)
+    ax.axvline(0.80, color="green", linestyle=":", linewidth=1.0, alpha=0.5, zorder=1)
+    ax.text(0.85, 0.92, "Clinical-grade\ntarget zone", fontsize=10,
+            color="darkgreen", ha="left", va="center", alpha=0.8)
+
+    # Single-architecture default-threshold points
+    m_path = results_dir / "metrics_canonical.csv"
+    if m_path.exists():
+        m = pd.read_csv(m_path)
+        rw = m[m["dataset"] == "realworld_n2000"]
+        ax.scatter(rw["specificity"], rw["sensitivity"], s=80, marker="o",
+                   color="steelblue", alpha=0.8, label="Single architecture (default threshold)", zorder=3)
+        # Annotate each
+        for _, r in rw.iterrows():
+            ax.annotate(ARCH_DISPLAY.get(r["architecture"], r["architecture"])[:18],
+                        (r["specificity"], r["sensitivity"]),
+                        xytext=(3, 3), textcoords="offset points",
+                        fontsize=7, alpha=0.7)
+
+    # Cascade Pareto frontier (highlight in different color)
+    pf_path = results_dir / "cascade_pareto.csv"
+    if pf_path.exists():
+        pf = pd.read_csv(pf_path)
+        pf = pf[pf["stage1"] < pf["stage2"]]  # dedupe symmetric pairs
+        ax.scatter(pf["specificity"], pf["sensitivity"], s=50, marker="s",
+                   color="darkorange", alpha=0.7, label="Two-stage cascade (Pareto frontier)", zorder=3)
+
+    # Ensemble best balanced points
+    en_path = results_dir / "ensemble_results.csv"
+    if en_path.exists():
+        en = pd.read_csv(en_path)
+        # Only plot hard voting + selected soft voting best
+        hv = en[en["rule"].str.startswith("hard_")]
+        ax.scatter(hv["specificity"], hv["sensitivity"], s=50, marker="^",
+                   color="purple", alpha=0.7, label="Hard-voting ensemble (k-of-9)", zorder=3)
+        # Best soft-voting point
+        soft = en[en["rule"].str.startswith("soft_")]
+        if not soft.empty:
+            soft = soft.copy()
+            soft["balanced"] = soft[["sensitivity", "specificity"]].min(axis=1)
+            best_soft = soft.loc[soft["balanced"].idxmax()]
+            ax.scatter([best_soft["specificity"]], [best_soft["sensitivity"]], s=120,
+                       marker="*", color="goldenrod", alpha=0.9,
+                       label="Best soft-voting ensemble", zorder=4)
+
+    # Multi-LLM consensus rules
+    ml_path = results_dir / "multi_llm_consensus.csv"
+    if ml_path.exists():
+        ml = pd.read_csv(ml_path)
+        # Skip the single-LLM-only rules (already in single-architecture points)
+        consensus = ml[ml["rule"].str.contains("rule_")]
+        ax.scatter(consensus["specificity"], consensus["sensitivity"], s=80,
+                   marker="D", color="crimson", alpha=0.8,
+                   label="Multi-LLM consensus rule", zorder=3)
+
+    ax.set_xlabel("Specificity")
+    ax.set_ylabel("Sensitivity")
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.02, 1.02)
+    ax.set_title("Receiver operating characteristic envelope: all strategies\nNo strategy reaches the clinical-grade target zone (top-right)")
+    ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
+    ax.grid(True, alpha=0.3)
+    out_path = output_dir / "figure3_pareto_frontier.png"
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close()
+    return out_path
+
+
 def render_figure2_action_recommendations(predictions_dir: Path, output_dir: Path) -> Path:
     """Figure 2: stacked bar chart of appropriate/under/over-triage rates."""
     import matplotlib
@@ -672,6 +753,9 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     print("[render] Figure 2 (action recommendations stacked bar)")
     out["figure2"] = render_figure2_action_recommendations(predictions_dir, figures_dir)
     print(f"  → {out['figure2']}")
+    print("[render] Figure 3 (Pareto frontier across all strategies)")
+    out["figure3"] = render_figure3_pareto_frontier(results_dir, figures_dir)
+    print(f"  → {out['figure3']}")
     return out
 
 

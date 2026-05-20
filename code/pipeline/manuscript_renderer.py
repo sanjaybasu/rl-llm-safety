@@ -101,16 +101,18 @@ class TemplateRenderer:
         "tableS4_category_stratification_block": "tables/tableS4_category_stratification.md",
         "figure1_caption_block": None,  # figure binary lives at figures/figure1_sens_spec_change.png
         "figure2_caption_block": None,
+        "figure3_caption_block": None,
     }
 
     def _resolve_block(self, key: str) -> str:
         """Read an embeddable block from results/tables/<name>.md or build inline."""
         if key == "table1_population_block":
             return self._build_table1_population()
-        if key in ("figure1_caption_block", "figure2_caption_block"):
+        if key in ("figure1_caption_block", "figure2_caption_block", "figure3_caption_block"):
             fig_name = {
                 "figure1_caption_block": "figure1_sens_spec_change.png",
                 "figure2_caption_block": "figure2_action_recommendations.png",
+                "figure3_caption_block": "figure3_pareto_frontier.png",
             }[key]
             return f"![{fig_name}](figures/{fig_name})"
         rel = self._BLOCK_TABLE_MAP.get(key)
