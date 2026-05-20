@@ -390,6 +390,38 @@ def render_table5_cascade_pareto(results_dir: Path, output_dir: Path) -> Path:
     return csv_path
 
 
+def render_table6_threshold_optimized(results_dir: Path, output_dir: Path) -> Path:
+    """Table 6: post-hoc threshold optimization — F1-max, MCC-max, clinical-grade reachability."""
+    th_path = results_dir / "threshold_optimized.csv"
+    if not th_path.exists():
+        csv_path = output_dir / "table6_threshold_optimized.csv"
+        md_path = output_dir / "table6_threshold_optimized.md"
+        pd.DataFrame().to_csv(csv_path, index=False)
+        md_path.write_text("_[Table 6 not yet rendered — threshold_optimized.csv missing]_\n")
+        return csv_path
+
+    th = pd.read_csv(th_path)
+    rows = []
+    for _, r in th.iterrows():
+        rows.append({
+            "Architecture": ARCH_DISPLAY.get(r["architecture"], r["architecture"]),
+            "F1-max": f"{r['f1_max']:.3f}",
+            "Sens at F1-max": f"{r['f1_max_sens']:.3f}",
+            "Spec at F1-max": f"{r['f1_max_spec']:.3f}",
+            "MCC-max": f"{r['mcc_max']:.3f}",
+            "Sens at MCC-max": f"{r['mcc_max_sens']:.3f}",
+            "Spec at MCC-max": f"{r['mcc_max_spec']:.3f}",
+            "Clinical-grade reachable?": "Yes" if r["clinical_grade_reachable"] else "No",
+            "Sens/Spec at closest point": f"{r['closest_to_clinical_grade_sens']:.3f} / {r['closest_to_clinical_grade_spec']:.3f}",
+        })
+    out_df = pd.DataFrame(rows)
+    csv_path = output_dir / "table6_threshold_optimized.csv"
+    md_path = output_dir / "table6_threshold_optimized.md"
+    out_df.to_csv(csv_path, index=False)
+    write_markdown_table(out_df, md_path)
+    return csv_path
+
+
 def render_tableS3_cascade_full(results_dir: Path, output_dir: Path) -> Path:
     """Table S3: Full 72-pair cascade matrix on the real-world set."""
     cascade_path = results_dir / "cascade_matrix.csv"
@@ -454,6 +486,9 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     print("[render] Table 5 (cascade Pareto frontier)")
     out["table5"] = render_table5_cascade_pareto(results_dir, tables_dir)
     print(f"  → {out['table5']}")
+    print("[render] Table 6 (threshold optimization)")
+    out["table6"] = render_table6_threshold_optimized(results_dir, tables_dir)
+    print(f"  → {out['table6']}")
     print("[render] Table S1 (physician holdout)")
     out["tableS1"] = render_tableS1_physician_metrics(metrics_df, tables_dir)
     print(f"  → {out['tableS1']}")

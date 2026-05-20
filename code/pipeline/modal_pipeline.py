@@ -752,6 +752,15 @@ def phase13_render_manuscript(run_id: str) -> dict:
         "--results-dir", str(results_dir),
     ], check=True)
 
+    # 2b.2 Threshold-optimization analysis — produces threshold_optimized.csv,
+    # consumed by render_tables_figures (Table 6).
+    print(f"  [2b.2/5] Threshold-optimization analysis...")
+    subprocess.run([
+        "python3", f"{pipeline}/threshold_analysis.py",
+        "--curves", str(results_dir / "operating_curves.csv"),
+        "--output", str(results_dir / "threshold_optimized.csv"),
+    ], check=True)
+
     # 2c. Re-render tables/figures so Tables 5 + S3 (cascade) are included.
     # The render_tables_figures CLI already ran during Phase 12 against the
     # un-filtered predictions volume; re-run here against the filtered set so

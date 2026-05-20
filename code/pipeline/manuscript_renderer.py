@@ -93,6 +93,7 @@ class TemplateRenderer:
         "table3_operating_points_block": "tables/table3_operating_points.md",
         "table4_action_recommendations_block": "tables/table4_action_recommendations.md",
         "table5_cascade_pareto_block": "tables/table5_cascade_pareto.md",
+        "table6_threshold_optimized_block": "tables/table6_threshold_optimized.md",
         "tableS1_physician_holdout_block": "tables/tableS1_physician_holdout_metrics.md",
         "tableS2_delta_bootstrap_block": "tables/tableS2_delta_bootstrap.md",
         "tableS3_cascade_full_block": "tables/tableS3_cascade_full.md",
