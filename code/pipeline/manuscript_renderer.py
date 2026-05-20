@@ -126,7 +126,7 @@ class TemplateRenderer:
         }
         if key in figure_map:
             fig_name = figure_map[key]
-            return f"![{fig_name}](figures/{fig_name})"
+            return f"![](figures/{fig_name})"
         rel = self._BLOCK_TABLE_MAP.get(key)
         if rel:
             path = self.results_dir / rel

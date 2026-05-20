@@ -622,10 +622,10 @@ def render_table10_deployment_policies(results_dir: Path, output_dir: Path) -> P
             r = floor_85.iloc[0]
             if pd.notna(r["max_specificity"]):
                 rows.append(from_sens_spec(
-                    f"**Policy A** — high-recall screen ({r['winning_label']})",
+                    f"**Policy A**: high-recall screen ({r['winning_label']})",
                     float(r["winning_sensitivity"]),
                     float(r["max_specificity"]),
-                    "sens >= 0.85 floor; ALL flagged messages → clinician confirmation queue",
+                    "sens >= 0.85 floor; all flagged messages sent to clinician confirmation queue",
                 ))
 
     # --- Policy B: disagreement-stratified 2+ flagging ---
@@ -643,9 +643,9 @@ def render_table10_deployment_policies(results_dir: Path, output_dir: Path) -> P
             sens_b = tp_b / (tp_b + fn_b) if (tp_b + fn_b) else float("nan")
             spec_b = tn_b / (tn_b + fp_b) if (tn_b + fp_b) else float("nan")
             rows.append(from_sens_spec(
-                "**Policy B** — disagreement-stratified triage (≥2 of 10 architectures flag → clinician review)",
+                "**Policy B**: disagreement-stratified triage (2 or more of 10 architectures flag, route to clinician review)",
                 sens_b, spec_b,
-                "0-1 flagging → autonomous benign; 2+ → clinician review; 7+ → autonomous escalation",
+                "0-1 architectures flagging: autonomous benign; 2 or more: clinician review; 7 or more: autonomous escalation",
             ))
 
     # Reference: clinical-grade target
