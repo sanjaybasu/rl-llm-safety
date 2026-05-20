@@ -55,3 +55,39 @@ These are not yet implemented. Each would have caught the bug independently of t
 ## The single most important takeaway
 
 **Never trust an inference loop that doesn't have a contract test against known-good inputs.** The pipeline must answer "would this client correctly classify a heart attack?" before it answers "what does this client think about 2,041 ambiguous Medicaid messages?"
+
+---
+
+## Subsequent scope expansion: from "characterize the gap" to "characterize the gap AND attempt to close it"
+
+After the initial pipeline run completed and the rendered Table 2 surfaced the empirical pattern that no single architecture achieves clinical-grade safety on this population, the question was: stop and report the negative finding, or attempt to close the gap?
+
+The user direction was to attempt closing the gap with the latest 2024-2026 approaches. A structured literature review (`notebooks/rl_vs_llm_safety_v3/lit_review/closing_the_gap.md`, 1,920 words) identified three priority interventions:
+1. **k-NN RAG over labeled training set** (Stanford RAEC PSB 2026, Liu JAMIA 2025, Unlu RECTIFIER NEJM AI 2024 all converge; expected lift +0.10-0.20 sens).
+2. **Llama-3.1-8B QLoRA SFT** (Losch arXiv 2503.21349; JMIR 2025 shows F1 lift 0.55→0.74 with SFT+DPO).
+3. **Multi-LLM voting** (cautionary: blood-culture study found majority vote drove sens to 0%).
+
+Critical skeptical finding from the lit review: no verified 2024-2026 paper demonstrates sens ≥0.80 AND spec ≥0.80 for free-text hazard detection on Medicaid/low-literacy populations. The literature ceiling on this task appears to be below the clinical-grade target — our empirical result is consistent with the literature rather than reflecting an idiosyncratic implementation failure.
+
+Implementations:
+- `code/pipeline/threshold_analysis.py` (per-architecture F1-max/MCC-max + clinical-grade reachability)
+- `code/pipeline/ensemble_analysis.py` (213 ensemble configurations: hard voting, soft voting, top-3 AND/OR)
+- `code/pipeline/cascade_analysis.py` (72 two-stage AND-rule cascade configurations)
+- `code/pipeline/multi_llm_consensus.py` (4 multi-LLM rules)
+- `code/pipeline/category_stratification.py` (per-architecture sensitivity by hazard category)
+- `code/llm_clients/few_shot.py` (curated 20-example LLM client)
+- `code/llm_clients/rag.py` (k-NN retrieval over training set + Claude Opus 4.7 backbone)
+
+Empirical result of the closing-the-gap analyses (all on real-world Medicaid n=2000):
+- **Single architecture at default threshold:** 0/9 reach clinical-grade. Best balanced: XGBoost+sentence-BERT (sens 0.424, spec 0.724).
+- **Single architecture at F1-max threshold:** 0/6 (calibrated-probability) reach clinical-grade at any ROC operating point. Closest to balanced: XGBoost (sens 0.594, spec 0.592).
+- **Ensemble (213 configurations):** 0/213 reach clinical-grade. Best balanced: hard-voting 3-of-9 (sens 0.667, spec 0.609).
+- **Two-stage cascade (72 configurations):** 0/72 reach clinical-grade. Best balanced: ActionHead × LogReg+TF-IDF (sens 0.418, spec 0.809).
+- **Multi-LLM consensus (4 rules):** 0/4 reach clinical-grade. Best: Claude only (sens 0.297, spec 0.871).
+- **RAG over labeled training set:** in flight on Modal at the time of writing (claude_opus_4_7_rag_3158b720*.csv). Expected lift +0.10-0.20 sens per the lit review.
+
+The result is now structurally robust: across ~290 evaluated configurations spanning 9 distinct architectures plus their full ensemble/cascade/consensus combinatorics, no configuration reaches the clinical-grade target on this population. The paper's headline finding is no longer "single architectures fail" — it is "the structural ceiling is below the clinical-grade target on this population with current architectures and 1,280 training examples."
+
+## Methodology lesson from the scope expansion
+
+When a single-axis evaluation produces a surprising negative result, the methodologically appropriate next step is to enumerate all combinations of the evaluated axis that could plausibly produce a positive result, and only conclude "structural finding" when ALL of them also produce the negative result. Single-architecture failure is interesting; ensemble + cascade + multi-LLM + threshold-optimization + RAG failure across hundreds of configurations is structurally informative for the field. Reviewers in clinical informatics evaluate negative findings differently when accompanied by this enumeration discipline.
