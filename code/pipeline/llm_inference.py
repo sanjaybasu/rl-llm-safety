@@ -29,6 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from llm_clients.anthropic_client import ClaudeOpusClient
 from llm_clients.gemini_client import GeminiProClient
+from llm_clients.few_shot import ClaudeFewShotClient
+from llm_clients.rag import ClaudeRAGClient
 
 
 def load_test_records(path: Path) -> tuple[list[dict], list[str]]:
@@ -223,6 +225,13 @@ def run_llm_inference(
             client = GeminiProClient(prompt_variant="safety")
         elif arch == "gemini_3_1_pro_default":
             client = GeminiProClient(prompt_variant="default")
+        elif arch == "claude_opus_4_7_fewshot":
+            client = ClaudeFewShotClient()
+        elif arch == "claude_opus_4_7_rag":
+            training_path = Path("/data/combined_train.json")
+            with open(training_path) as fh:
+                training_records = json.load(fh)
+            client = ClaudeRAGClient(training_records=training_records, k=8)
         else:
             print(f"  Unknown LLM architecture: {arch} — skipping")
             continue
