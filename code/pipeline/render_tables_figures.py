@@ -146,6 +146,10 @@ def render_table3_operating_points(
     For each architecture × target_spec, find the threshold that achieves
     target_spec on the operating curve and report (sens, achieved_spec).
     """
+    # Each row reports a single architecture's sensitivity at five target
+    # specificity points. The cell is just the sensitivity at the closest
+    # achievable operating point; achieved-specificity deviation is captured
+    # in a footnote and the full sweep is in Table S6.
     rows = []
     for arch in curves_df["architecture"].unique():
         curve = curves_df[curves_df["architecture"] == arch]
@@ -156,16 +160,10 @@ def render_table3_operating_points(
             best = curve_at.sort_values(["spec_distance", "threshold"]).iloc[0]
             sens = best["sensitivity"]
             achieved_spec = best["specificity"]
-            row[f"Spec={target_spec:.2f}"] = f"{sens:.3f} (achieved {achieved_spec:.3f})"
+            # Flag the cell with † if achieved specificity deviates more than 0.02 from target
+            flag = "†" if abs(achieved_spec - target_spec) > 0.02 else ""
+            row[f"Sens at Spec ≥ {target_spec:.2f}"] = f"{sens:.3f}{flag}"
         rows.append(row)
-    # For LLMs without calibrated proba, include single-threshold row from metrics
-    realworld = metrics_df[metrics_df["dataset"] == "realworld_n2000"]
-    for _, m in realworld.iterrows():
-        if m["architecture"] not in curves_df["architecture"].unique():
-            row = {"Architecture": ARCH_DISPLAY.get(m["architecture"], m["architecture"]) + " (single threshold)"}
-            for target_spec in target_specs:
-                row[f"Spec={target_spec:.2f}"] = f"{m['sensitivity']:.3f} (achieved {m['specificity']:.3f})"
-            rows.append(row)
 
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "table3_operating_points.csv"
@@ -231,9 +229,20 @@ def render_tableS1_physician_metrics(metrics_df: pd.DataFrame, output_dir: Path)
                 d.get("specificity", float("nan")),
                 d.get("specificity_ci_lo", float("nan")),
                 d.get("specificity_ci_hi", float("nan"))),
-            "F1": f"{d['f1']:.3f}",
-            "MCC": f"{d['mcc']:.3f}",
-            "AUROC": f"{d['auroc']:.3f}" if not np.isnan(d.get("auroc", float("nan"))) else "N/A",
+            "F1 (95% CI)": fmt_ci(
+                d.get("f1", float("nan")),
+                d.get("f1_ci_lo", float("nan")),
+                d.get("f1_ci_hi", float("nan"))),
+            "MCC (95% CI)": fmt_ci(
+                d.get("mcc", float("nan")),
+                d.get("mcc_ci_lo", float("nan")),
+                d.get("mcc_ci_hi", float("nan"))),
+            "AUROC (95% CI)": (
+                fmt_ci(d.get("auroc", float("nan")),
+                       d.get("auroc_ci_lo", float("nan")),
+                       d.get("auroc_ci_hi", float("nan")))
+                if not np.isnan(d.get("auroc", float("nan"))) else "N/A"
+            ),
         })
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "tableS1_physician_holdout_metrics.csv"
@@ -576,14 +585,21 @@ def render_table8_amc_stack(results_dir: Path, output_dir: Path) -> Path:
     df = pd.read_csv(p)
     rows = []
     for _, r in df.iterrows():
+        tp = r.get("tp", float("nan"))
+        fp = r.get("fp", float("nan"))
+        tn = r.get("tn", float("nan"))
+        fn = r.get("fn", float("nan"))
+        sens_lo, sens_hi = _wilson_ci(tp, tp + fn) if pd.notna(tp) and pd.notna(fn) else (float("nan"), float("nan"))
+        spec_lo, spec_hi = _wilson_ci(tn, tn + fp) if pd.notna(tn) and pd.notna(fp) else (float("nan"), float("nan"))
+        ppv_lo, ppv_hi = _wilson_ci(tp, tp + fp) if pd.notna(tp) and pd.notna(fp) else (float("nan"), float("nan"))
         rows.append({
             "AMC stack configuration": r["stack_label"],
-            "Sensitivity": f"{r['sensitivity']:.3f}",
-            "Specificity": f"{r['specificity']:.3f}",
-            "PPV": f"{r['ppv']:.3f}" if pd.notna(r["ppv"]) else "—",
+            "Sensitivity (95% CI)": fmt_ci(r["sensitivity"], sens_lo, sens_hi),
+            "Specificity (95% CI)": fmt_ci(r["specificity"], spec_lo, spec_hi),
+            "PPV (95% CI)": fmt_ci(r["ppv"], ppv_lo, ppv_hi) if pd.notna(r["ppv"]) else "—",
             "F1": f"{r['f1']:.3f}" if pd.notna(r["f1"]) else "—",
             "MCC": f"{r['mcc']:.3f}" if pd.notna(r["mcc"]) else "—",
-            "Clinical-grade?": "Yes" if r["clinical_grade"] else "No",
+            "Reached benchmark?": "Yes" if r["clinical_grade"] else "No",
         })
     out_df = pd.DataFrame(rows)
     out_df.to_csv(csv_path, index=False)
@@ -612,11 +628,14 @@ def render_table10_deployment_policies(results_dir: Path, output_dir: Path) -> P
         misses_per_1000 = 1000 * fn / N_TOTAL
         caught_per_1000 = 1000 * tp / N_TOTAL
         ppv = tp / (tp + fp) if (tp + fp) else float("nan")
+        sens_lo, sens_hi = _wilson_ci(tp, tp + fn)
+        spec_lo, spec_hi = _wilson_ci(tn, tn + fp)
+        ppv_lo, ppv_hi = _wilson_ci(tp, tp + fp)
         return {
             "Configuration": label,
-            "Sensitivity": f"{sens:.3f}",
-            "Specificity": f"{spec:.3f}",
-            "PPV": f"{ppv:.3f}",
+            "Sensitivity (95% CI)": fmt_ci(sens, sens_lo, sens_hi),
+            "Specificity (95% CI)": fmt_ci(spec, spec_lo, spec_hi),
+            "PPV (95% CI)": fmt_ci(ppv, ppv_lo, ppv_hi),
             "Alerts per 1,000 messages (clinician review load)": f"{alerts_per_1000:.0f}",
             "Hazards caught per 1,000 messages": f"{caught_per_1000:.1f}",
             "Hazards missed per 1,000 messages": f"{misses_per_1000:.1f}",
@@ -715,16 +734,16 @@ def render_table10_deployment_policies(results_dir: Path, output_dir: Path) -> P
                 "0-1 architectures flagging: autonomous benign; 2 or more: clinician review; 7 or more: autonomous escalation",
             ))
 
-    # Reference: clinical-grade target
+    # Reference: autonomous (physician-unassisted) triage benchmark
     rows.insert(0, {
-        "Configuration": "**Clinical-grade target (autonomous deployment)**",
-        "Sensitivity": "≥ 0.800",
-        "Specificity": "≥ 0.800",
-        "PPV": "—",
+        "Configuration": "**Autonomous (physician-unassisted) triage benchmark**",
+        "Sensitivity (95% CI)": "≥ 0.800",
+        "Specificity (95% CI)": "≥ 0.800",
+        "PPV (95% CI)": "—",
         "Alerts per 1,000 messages (clinician review load)": "—",
         "Hazards caught per 1,000 messages": "—",
         "Hazards missed per 1,000 messages": "≤ 16.5",
-        "Note": "Clinical CAD/CDS benchmark (mammography, CT PE)",
+        "Note": "Anchored to IDx-DR pivotal trial (sens 87.2%, spec 90.7%)",
     })
 
     out_df = pd.DataFrame(rows)
@@ -1090,17 +1109,30 @@ def render_table6_threshold_optimized(results_dir: Path, output_dir: Path) -> Pa
         return csv_path
 
     th = pd.read_csv(th_path)
+    N_HAZ = 165
+    N_BEN = 1835
+
+    def _ci_pair(sens, spec):
+        """Return (sens_ci_str, spec_ci_str) at the given sens/spec on the n=2000 test set."""
+        tp = round(sens * N_HAZ); fn = N_HAZ - tp
+        tn = round(spec * N_BEN); fp = N_BEN - tn
+        sens_lo, sens_hi = _wilson_ci(tp, tp + fn)
+        spec_lo, spec_hi = _wilson_ci(tn, tn + fp)
+        return fmt_ci(sens, sens_lo, sens_hi), fmt_ci(spec, spec_lo, spec_hi)
+
     rows = []
     for _, r in th.iterrows():
+        f1_sens_ci, f1_spec_ci = _ci_pair(r["f1_max_sens"], r["f1_max_spec"])
+        mcc_sens_ci, mcc_spec_ci = _ci_pair(r["mcc_max_sens"], r["mcc_max_spec"])
         rows.append({
             "Architecture": ARCH_DISPLAY.get(r["architecture"], r["architecture"]),
             "F1-max": f"{r['f1_max']:.3f}",
-            "Sens at F1-max": f"{r['f1_max_sens']:.3f}",
-            "Spec at F1-max": f"{r['f1_max_spec']:.3f}",
+            "Sens at F1-max (95% CI)": f1_sens_ci,
+            "Spec at F1-max (95% CI)": f1_spec_ci,
             "MCC-max": f"{r['mcc_max']:.3f}",
-            "Sens at MCC-max": f"{r['mcc_max_sens']:.3f}",
-            "Spec at MCC-max": f"{r['mcc_max_spec']:.3f}",
-            "Clinical-grade reachable?": "Yes" if r["clinical_grade_reachable"] else "No",
+            "Sens at MCC-max (95% CI)": mcc_sens_ci,
+            "Spec at MCC-max (95% CI)": mcc_spec_ci,
+            "Reached autonomous benchmark?": "Yes" if r["clinical_grade_reachable"] else "No",
             "Sens/Spec at closest point": f"{r['closest_to_clinical_grade_sens']:.3f} / {r['closest_to_clinical_grade_spec']:.3f}",
         })
     out_df = pd.DataFrame(rows)
