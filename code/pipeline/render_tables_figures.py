@@ -74,12 +74,30 @@ def write_markdown_table(out_df: pd.DataFrame, md_path: Path) -> None:
                 f.write("| " + " | ".join(str(row[c]) for c in cols) + " |\n")
 
 
+def _wilson_ci(k: float, n: float, z: float = 1.96) -> tuple:
+    """Wilson 95% CI for a proportion k/n. Returns (lo, hi)."""
+    import math
+    if n is None or n <= 0 or k is None or math.isnan(k) or math.isnan(n):
+        return (float("nan"), float("nan"))
+    p = k / n
+    denom = 1 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    half = (z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / denom
+    return (max(0.0, center - half), min(1.0, center + half))
+
+
 def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) -> Path:
     """Table 2: per-architecture detection metrics on real-world test set."""
     df = metrics_df[metrics_df["dataset"] == "realworld_n2000"].copy()
     rows = []
     for _, row in df.iterrows():
         d = row.to_dict()
+        tp = d.get("tp", float("nan"))
+        fp = d.get("fp", float("nan"))
+        tn = d.get("tn", float("nan"))
+        fn = d.get("fn", float("nan"))
+        ppv_lo, ppv_hi = _wilson_ci(tp, tp + fp)
+        npv_lo, npv_hi = _wilson_ci(tn, tn + fn)
         rows.append({
             "Architecture": ARCH_DISPLAY.get(d["architecture"], d["architecture"]),
             "Sensitivity (95% CI)": fmt_ci(
@@ -90,8 +108,10 @@ def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) 
                 d.get("specificity", float("nan")),
                 d.get("specificity_ci_lo", float("nan")),
                 d.get("specificity_ci_hi", float("nan"))),
-            "PPV": f"{d['ppv']:.3f}" if not np.isnan(d.get("ppv", float("nan"))) else "—",
-            "NPV": f"{d['npv']:.3f}" if not np.isnan(d.get("npv", float("nan"))) else "—",
+            "PPV (95% CI)": fmt_ci(d.get("ppv", float("nan")), ppv_lo, ppv_hi)
+                if not np.isnan(d.get("ppv", float("nan"))) else "—",
+            "NPV (95% CI)": fmt_ci(d.get("npv", float("nan")), npv_lo, npv_hi)
+                if not np.isnan(d.get("npv", float("nan"))) else "—",
             "F1 (95% CI)": fmt_ci(
                 d.get("f1", float("nan")),
                 d.get("f1_ci_lo", float("nan")),
@@ -136,7 +156,7 @@ def render_table3_operating_points(
             best = curve_at.sort_values(["spec_distance", "threshold"]).iloc[0]
             sens = best["sensitivity"]
             achieved_spec = best["specificity"]
-            row[f"Spec={target_spec:.2f}"] = f"{sens:.3f} (ach. {achieved_spec:.3f})"
+            row[f"Spec={target_spec:.2f}"] = f"{sens:.3f} (achieved {achieved_spec:.3f})"
         rows.append(row)
     # For LLMs without calibrated proba, include single-threshold row from metrics
     realworld = metrics_df[metrics_df["dataset"] == "realworld_n2000"]
@@ -144,7 +164,7 @@ def render_table3_operating_points(
         if m["architecture"] not in curves_df["architecture"].unique():
             row = {"Architecture": ARCH_DISPLAY.get(m["architecture"], m["architecture"]) + " (single threshold)"}
             for target_spec in target_specs:
-                row[f"Spec={target_spec:.2f}"] = f"{m['sensitivity']:.3f} (ach. {m['specificity']:.3f})"
+                row[f"Spec={target_spec:.2f}"] = f"{m['sensitivity']:.3f} (achieved {m['specificity']:.3f})"
             rows.append(row)
 
     out_df = pd.DataFrame(rows)
@@ -461,15 +481,48 @@ def render_table5_cascade_pareto(results_dir: Path, output_dir: Path) -> Path:
     def fmt_pair(s1, s2):
         return f"{ARCH_DISPLAY_SHORT.get(s1, s1)} × {ARCH_DISPLAY_SHORT.get(s2, s2)}"
 
+    def _ppv_ci(tp, fp):
+        if pd.isna(tp) or pd.isna(fp) or (tp + fp) <= 0:
+            return (float("nan"), float("nan"))
+        return _wilson_ci(float(tp), float(tp) + float(fp))
+
+    def _bootstrap_f1_mcc(tp, fp, tn, fn, n_iter=1000, seed=42):
+        """Parametric-bootstrap 95% CI for F1 and MCC from a 2x2 confusion table."""
+        import math
+        if any(pd.isna(x) for x in [tp, fp, tn, fn]):
+            return ((float("nan"), float("nan")), (float("nan"), float("nan")))
+        rng = np.random.RandomState(seed)
+        n_pos = int(tp + fn)
+        n_neg = int(tn + fp)
+        sens_p = tp / max(n_pos, 1)
+        spec_p = tn / max(n_neg, 1)
+        f1s, mccs = [], []
+        for _ in range(n_iter):
+            tp_b = rng.binomial(n_pos, sens_p)
+            tn_b = rng.binomial(n_neg, spec_p)
+            fn_b = n_pos - tp_b
+            fp_b = n_neg - tn_b
+            denom_f1 = (2 * tp_b + fp_b + fn_b)
+            f1 = (2 * tp_b) / denom_f1 if denom_f1 > 0 else float("nan")
+            denom_mcc = math.sqrt((tp_b + fp_b) * (tp_b + fn_b) * (tn_b + fp_b) * (tn_b + fn_b))
+            mcc = (tp_b * tn_b - fp_b * fn_b) / denom_mcc if denom_mcc > 0 else float("nan")
+            f1s.append(f1); mccs.append(mcc)
+        f1_lo, f1_hi = np.nanpercentile(f1s, 2.5), np.nanpercentile(f1s, 97.5)
+        mcc_lo, mcc_hi = np.nanpercentile(mccs, 2.5), np.nanpercentile(mccs, 97.5)
+        return ((f1_lo, f1_hi), (mcc_lo, mcc_hi))
+
     rows = []
     for _, r in pf.iterrows():
+        ppv_lo, ppv_hi = _ppv_ci(r.get("tp"), r.get("fp"))
+        (f1_lo, f1_hi), (mcc_lo, mcc_hi) = _bootstrap_f1_mcc(
+            r.get("tp"), r.get("fp"), r.get("tn"), r.get("fn"))
         rows.append({
             "Cascade (Stage 1 × Stage 2)": fmt_pair(r["stage1"], r["stage2"]),
             "Sensitivity (95% CI)": fmt_ci(r["sensitivity"], r["sensitivity_ci_lo"], r["sensitivity_ci_hi"]),
             "Specificity (95% CI)": fmt_ci(r["specificity"], r["specificity_ci_lo"], r["specificity_ci_hi"]),
-            "PPV": f"{r['ppv']:.3f}" if pd.notna(r["ppv"]) else "—",
-            "F1": f"{r['f1']:.3f}" if pd.notna(r["f1"]) else "—",
-            "MCC": f"{r['mcc']:.3f}" if pd.notna(r["mcc"]) else "—",
+            "PPV (95% CI)": fmt_ci(r["ppv"], ppv_lo, ppv_hi) if pd.notna(r["ppv"]) else "—",
+            "F1 (95% CI)": fmt_ci(r["f1"], f1_lo, f1_hi) if pd.notna(r["f1"]) else "—",
+            "MCC (95% CI)": fmt_ci(r["mcc"], mcc_lo, mcc_hi) if pd.notna(r["mcc"]) else "—",
             "FN per 1,000": f"{r['fn_per_1000']:.1f}",
         })
     out_df = pd.DataFrame(rows)
