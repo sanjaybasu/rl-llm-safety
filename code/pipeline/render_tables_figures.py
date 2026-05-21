@@ -90,6 +90,21 @@ def _wilson_ci(k: float, n: float, z: float = 1.96) -> tuple:
     return (max(0.0, center - half), min(1.0, center + half))
 
 
+def _humanize_arch_label(label: str) -> str:
+    """Replace any raw architecture key inside a free-text label with its
+    ARCH_DISPLAY_SHORT form, so labels like 'xgboost_sbert@thresh' or
+    'AMC stack (logreg_tfidf gate + claude_opus_4_7_rag)' render as
+    'XGBoost+SBERT@thresh' / 'AMC stack (LogReg+TF-IDF gate + Claude 4.7 + RAG)'.
+    Longer keys are substituted first so 'cql_sens_opt' is matched before 'cql'.
+    """
+    if not isinstance(label, str):
+        return label
+    out = label
+    for key in sorted(ARCH_DISPLAY_SHORT.keys(), key=len, reverse=True):
+        out = out.replace(key, ARCH_DISPLAY_SHORT[key])
+    return out
+
+
 def _delong_auroc_ci(proba, true, alpha: float = 0.05) -> tuple:
     """DeLong 95% CI for a single AUROC via Mann-Whitney structural variance.
 
@@ -338,9 +353,9 @@ def render_tableS1_physician_metrics(
             elif not np.isnan(auroc_pt):
                 auroc_cell = f"{auroc_pt:.3f}"
             else:
-                auroc_cell = "N/A"
+                auroc_cell = "N/A*"
         else:
-            auroc_cell = "N/A"
+            auroc_cell = "N/A*"
         rows.append({
             "Architecture": ARCH_DISPLAY.get(arch, arch),
             "TP/FN/TN/FP": f"{int(d['tp'])}/{int(d['fn'])}/{int(d['tn'])}/{int(d['fp'])}",
@@ -364,8 +379,23 @@ def render_tableS1_physician_metrics(
         })
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "tableS1_physician_holdout_metrics.csv"
+    md_path = output_dir / "tableS1_physician_holdout_metrics.md"
     out_df.to_csv(csv_path, index=False)
-    write_markdown_table(out_df, output_dir / "tableS1_physician_holdout_metrics.md")
+    write_markdown_table(out_df, md_path)
+    # Append in-table footnote so the asterisk on the N/A cells has a local explanation
+    # alongside the appendix caption (Caption is rendered separately by the
+    # manuscript_renderer; this footnote lives directly under the markdown table).
+    with open(md_path, "a") as fh:
+        fh.write(
+            "\n\n*N/A\\*: AUROC is undefined for this architecture because the "
+            "configured inference API returns a discrete hazard flag in a "
+            "structured JSON output rather than a continuous probability scalar, "
+            "leaving no score to sweep across thresholds. This affects the three "
+            "frontier large language model configurations under both the "
+            "safety-augmented and retrieval-augmented prompts and the ActionHead "
+            "action recommender, which emits a discrete action class rather than "
+            "a calibrated hazard probability.*\n"
+        )
     return csv_path
 
 
@@ -762,7 +792,7 @@ def render_table8_amc_stack(results_dir: Path, output_dir: Path) -> Path:
             f1_lo, f1_hi = np.nanpercentile(f1s, 2.5), np.nanpercentile(f1s, 97.5)
             mcc_lo, mcc_hi = np.nanpercentile(mccs, 2.5), np.nanpercentile(mccs, 97.5)
         rows.append({
-            "AMC stack configuration": r["stack_label"],
+            "AMC stack configuration": _humanize_arch_label(r["stack_label"]),
             "Sensitivity (95% CI)": fmt_ci(r["sensitivity"], sens_lo, sens_hi),
             "Specificity (95% CI)": fmt_ci(r["specificity"], spec_lo, spec_hi),
             "PPV (95% CI)": fmt_ci(r["ppv"], ppv_lo, ppv_hi) if pd.notna(r["ppv"]) else "—",
@@ -888,7 +918,7 @@ def render_table10_deployment_policies(results_dir: Path, output_dir: Path) -> P
             r = floor_85.iloc[0]
             if pd.notna(r["max_specificity"]):
                 rows.append(from_sens_spec(
-                    f"**Policy A**: high-recall screen ({r['winning_label']})",
+                    f"**Policy A**: high-recall screen ({_humanize_arch_label(r['winning_label'])})",
                     float(r["winning_sensitivity"]),
                     float(r["max_specificity"]),
                     "sens >= 0.85 floor; all flagged messages sent to clinician confirmation queue",
@@ -962,11 +992,15 @@ def render_table9_deployment_grade(results_dir: Path, output_dir: Path) -> Path:
                 ms_str = f"{ms:.3f} ({ms_lo:.3f}–{ms_hi:.3f})"
             else:
                 ms_str = "—"
+            winning_disp = (
+                f"{r['winning_strategy_type']} / {_humanize_arch_label(r['winning_label'])}"
+                if pd.notna(r.get("winning_strategy_type")) else "—"
+            )
             a_rows.append({
                 "Sensitivity floor": f"≥ {r['sens_floor']:.2f}",
                 "N configurations meeting floor": int(r["n_configurations_meeting_floor"]) if pd.notna(r["n_configurations_meeting_floor"]) else 0,
                 "Max specificity at floor (95% CI)": ms_str,
-                "Winning configuration": (f"{r['winning_strategy_type']} / {r['winning_label']}" if pd.notna(r.get("winning_strategy_type")) else "—"),
+                "Winning configuration": winning_disp,
                 "Sens (winning) (95% CI)": ws_str,
             })
         a_df = pd.DataFrame(a_rows)
