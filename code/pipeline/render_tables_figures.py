@@ -41,7 +41,11 @@ ARCH_DISPLAY = {
     "xgboost_sbert": "XGBoost + sentence-BERT",
     "logreg_tfidf": "Logistic regression + TF-IDF",
     "claude_opus_4_7_safety": "Claude Opus 4.7 (safety-augmented)",
+    "claude_opus_4_7_rag": "Claude Opus 4.7 (RAG)",
     "gemini_3_1_pro_safety": "Gemini 3.1 Pro (safety-augmented)",
+    "gemini_3_1_pro_rag": "Gemini 3.1 Pro (RAG)",
+    "gpt_5_5_safety": "GPT-5.5 (safety-augmented)",
+    "gpt_5_5_rag": "GPT-5.5 (RAG)",
 }
 
 
@@ -84,6 +88,57 @@ def _wilson_ci(k: float, n: float, z: float = 1.96) -> tuple:
     center = (p + z * z / (2 * n)) / denom
     half = (z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / denom
     return (max(0.0, center - half), min(1.0, center + half))
+
+
+def _delong_auroc_ci(proba, true, alpha: float = 0.05) -> tuple:
+    """DeLong 95% CI for a single AUROC via Mann-Whitney structural variance.
+
+    Reference: DeLong ER, DeLong DM, Clarke-Pearson DL. Comparing the areas
+    under two or more correlated receiver operating characteristic curves: a
+    nonparametric approach. Biometrics 1988;44(3):837-845.
+
+    Returns (auroc, ci_lo, ci_hi). Returns (nan, nan, nan) if there is no
+    positive or no negative case, or fewer than 2 of either (variance is
+    undefined with a single sample).
+    """
+    import math
+    proba = np.asarray(proba, dtype=float)
+    true = np.asarray(true, dtype=int)
+    pos = proba[true == 1]
+    neg = proba[true == 0]
+    m = len(pos); n = len(neg)
+    if m < 2 or n < 2:
+        return (float("nan"), float("nan"), float("nan"))
+    # Mann-Whitney U-based AUROC
+    # AUROC = (sum over (i,j) of [pos_i > neg_j] + 0.5 * [pos_i == neg_j]) / (m*n)
+    pos_sorted = np.sort(pos)
+    neg_sorted = np.sort(neg)
+    rank_sum = 0.0
+    for p in pos:
+        rank_sum += np.searchsorted(neg_sorted, p, side="right") - 0.5 * (
+            np.searchsorted(neg_sorted, p, side="right") - np.searchsorted(neg_sorted, p, side="left")
+        )
+    auroc = rank_sum / (m * n)
+    # DeLong structural components
+    V10 = np.array([
+        (np.searchsorted(neg_sorted, p, side="left")
+         + 0.5 * (np.searchsorted(neg_sorted, p, side="right")
+                  - np.searchsorted(neg_sorted, p, side="left")))
+        / n
+        for p in pos
+    ])
+    V01 = np.array([
+        ((m - np.searchsorted(pos_sorted, q, side="right"))
+         + 0.5 * (np.searchsorted(pos_sorted, q, side="right")
+                  - np.searchsorted(pos_sorted, q, side="left")))
+        / m
+        for q in neg
+    ])
+    var_auroc = V10.var(ddof=1) / m + V01.var(ddof=1) / n
+    se = math.sqrt(max(var_auroc, 0.0))
+    # 1.96 ≈ scipy.stats.norm.ppf(0.975); hardcode to avoid scipy dependency
+    z = 1.95996398454005423552
+    return (auroc, max(0.0, auroc - z * se), min(1.0, auroc + z * se))
 
 
 def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) -> Path:
@@ -236,14 +291,58 @@ def render_table4_action_recommendations(
     return csv_path
 
 
-def render_tableS1_physician_metrics(metrics_df: pd.DataFrame, output_dir: Path) -> Path:
-    """Table S1: physician-holdout metrics with TP/FN/TN/FP per architecture."""
+def render_tableS1_physician_metrics(
+    metrics_df: pd.DataFrame, output_dir: Path,
+    predictions_dir: Path | None = None,
+) -> Path:
+    """Table S1: physician-holdout metrics with TP/FN/TN/FP per architecture.
+
+    AUROC 95% CIs are computed by the DeLong (1988) structural-variance method
+    in-line from the per-message prediction files. Architectures that emit
+    discrete hazard flags rather than continuous probability scalars (the
+    frontier LLMs and ActionHead's hazard endpoint) display "N/A" for AUROC,
+    consistent with the Table S1 caption.
+    """
     df = metrics_df[metrics_df["dataset"] == "physician_n41"].copy()
+    # Build a {architecture: (proba, true)} map from the per-message CSVs so
+    # DeLong CIs can be computed locally without depending on whether the
+    # metrics_phase wrote auroc_ci_lo/hi columns.
+    pred_index: dict[str, tuple] = {}
+    if predictions_dir is not None and predictions_dir.exists():
+        for csv_path in sorted(Path(predictions_dir).glob("*.csv")):
+            try:
+                pdf = pd.read_csv(csv_path)
+            except Exception:
+                continue
+            sub = pdf[pdf["dataset"] == "physician_n41"].copy()
+            if sub.empty:
+                continue
+            arch = str(sub["architecture"].iloc[0])
+            sub["pred_proba"] = pd.to_numeric(sub.get("pred_proba"), errors="coerce")
+            if sub["pred_proba"].isna().all():
+                continue
+            proba = sub["pred_proba"].values
+            true = sub["true_hazard"].astype(int).values
+            pred_index[arch] = (proba, true)
+
     rows = []
     for _, row in df.iterrows():
         d = row.to_dict()
+        arch = d["architecture"]
+        # AUROC + DeLong CI cell
+        if arch in pred_index:
+            proba, true = pred_index[arch]
+            auroc_pt, lo, hi = _delong_auroc_ci(proba, true)
+            if not (np.isnan(auroc_pt) or np.isnan(lo) or np.isnan(hi)):
+                auroc_cell = f"{auroc_pt:.3f} ({lo:.3f}–{hi:.3f})"
+            elif not np.isnan(auroc_pt):
+                auroc_cell = f"{auroc_pt:.3f}"
+            else:
+                auroc_cell = "N/A"
+        else:
+            auroc_cell = "N/A"
         rows.append({
-            "Architecture": ARCH_DISPLAY.get(d["architecture"], d["architecture"]),
+            "Architecture": ARCH_DISPLAY.get(arch, arch),
             "TP/FN/TN/FP": f"{int(d['tp'])}/{int(d['fn'])}/{int(d['tn'])}/{int(d['fp'])}",
             "Sensitivity (95% CI)": fmt_ci(
                 d.get("sensitivity", float("nan")),
@@ -261,12 +360,7 @@ def render_tableS1_physician_metrics(metrics_df: pd.DataFrame, output_dir: Path)
                 d.get("mcc", float("nan")),
                 d.get("mcc_ci_lo", float("nan")),
                 d.get("mcc_ci_hi", float("nan"))),
-            "AUROC (95% CI)": (
-                fmt_ci(d.get("auroc", float("nan")),
-                       d.get("auroc_ci_lo", float("nan")),
-                       d.get("auroc_ci_hi", float("nan")))
-                if not np.isnan(d.get("auroc", float("nan"))) else "N/A"
-            ),
+            "AUROC (95% CI)": auroc_cell,
         })
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "tableS1_physician_holdout_metrics.csv"
@@ -497,7 +591,11 @@ ARCH_DISPLAY_SHORT = {
     "cql_reward_opt": "CQL reward-opt",
     "actionhead": "ActionHead",
     "claude_opus_4_7_safety": "Claude Opus 4.7",
+    "claude_opus_4_7_rag": "Claude 4.7 + RAG",
     "gemini_3_1_pro_safety": "Gemini 3.1 Pro",
+    "gemini_3_1_pro_rag": "Gemini 3.1 + RAG",
+    "gpt_5_5_safety": "GPT-5.5",
+    "gpt_5_5_rag": "GPT-5.5 + RAG",
 }
 
 
@@ -618,8 +716,10 @@ def render_tableS4_category_stratification(results_dir: Path, output_dir: Path) 
     pivot = pivot[col_means.index]
     pivot.columns = [ARCH_DISPLAY.get(c, c) for c in pivot.columns]
     n_per_cat = cs.groupby("hazard_category")["n_hazards"].first()
-    pivot.insert(0, "n hazards", n_per_cat)
-    out_df = pivot.reset_index()
+    pivot.insert(0, "N hazards", n_per_cat)
+    out_df = pivot.reset_index().rename(columns={"hazard_category": "Hazard category"})
+    # Humanize underscore-separated category names (e.g. "behavioral_other" → "Behavioral, other")
+    out_df["Hazard category"] = out_df["Hazard category"].astype(str).str.replace("_", " ").str.capitalize()
     out_df.to_csv(csv_path, index=False)
     write_markdown_table(out_df, md_path)
     return csv_path
@@ -1386,7 +1486,7 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
     out["table10"] = render_table10_deployment_policies(results_dir, tables_dir)
     print(f"  → {out['table10']}")
     print("[render] Table S1 (physician holdout)")
-    out["tableS1"] = render_tableS1_physician_metrics(metrics_df, tables_dir)
+    out["tableS1"] = render_tableS1_physician_metrics(metrics_df, tables_dir, predictions_dir=predictions_dir)
     print(f"  → {out['tableS1']}")
     print("[render] Table S2 (Δ bootstrap)")
     out["tableS2"] = render_tableS2_delta_bootstrap(delta_df, tables_dir)
