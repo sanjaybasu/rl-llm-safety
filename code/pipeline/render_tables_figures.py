@@ -89,6 +89,8 @@ def _wilson_ci(k: float, n: float, z: float = 1.96) -> tuple:
 def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) -> Path:
     """Table 2: per-architecture detection metrics on real-world test set."""
     df = metrics_df[metrics_df["dataset"] == "realworld_n2000"].copy()
+    N_HAZ_RW = 165
+    N_TOTAL_RW = 2000
     rows = []
     for _, row in df.iterrows():
         d = row.to_dict()
@@ -98,6 +100,19 @@ def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) 
         fn = d.get("fn", float("nan"))
         ppv_lo, ppv_hi = _wilson_ci(tp, tp + fp)
         npv_lo, npv_hi = _wilson_ci(tn, tn + fn)
+        # FN per 1,000 CI: derive from sensitivity Wilson CI bounds
+        # FN/1k = (1 - sens) * N_HAZ * 1000 / N_TOTAL; upper sens -> lower FN/1k
+        sens_lo = d.get("sensitivity_ci_lo", float("nan"))
+        sens_hi = d.get("sensitivity_ci_hi", float("nan"))
+        fn_per_1000 = d.get("fn_per_1000", float("nan"))
+        if not (np.isnan(sens_lo) or np.isnan(sens_hi) or np.isnan(fn_per_1000)):
+            fn1k_lo = (1.0 - sens_hi) * N_HAZ_RW * 1000.0 / N_TOTAL_RW
+            fn1k_hi = (1.0 - sens_lo) * N_HAZ_RW * 1000.0 / N_TOTAL_RW
+            fn_per_1k_str = f"{fn_per_1000:.1f} ({fn1k_lo:.1f}–{fn1k_hi:.1f})"
+        elif not np.isnan(fn_per_1000):
+            fn_per_1k_str = f"{fn_per_1000:.1f}"
+        else:
+            fn_per_1k_str = "—"
         def _i(x):
             return f"{int(x)}" if not (x is None or (isinstance(x, float) and np.isnan(x))) else "—"
         rows.append({
@@ -129,8 +144,7 @@ def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) 
                        d.get("auroc_ci_hi", float("nan")))
                 if not np.isnan(d.get("auroc", float("nan"))) else "N/A"
             ),
-            "FN per 1,000": f"{d['fn_per_1000']:.1f}" if not np.isnan(
-                d.get("fn_per_1000", float("nan"))) else "—",
+            "FN per 1,000 (95% CI)": fn_per_1k_str,
         })
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "table2_detection_metrics.csv"
@@ -150,9 +164,10 @@ def render_table3_operating_points(
     target_spec on the operating curve and report (sens, achieved_spec).
     """
     # Each row reports a single architecture's sensitivity at five target
-    # specificity points. The cell is just the sensitivity at the closest
-    # achievable operating point; achieved-specificity deviation is captured
-    # in a footnote and the full sweep is in Table S6.
+    # specificity points. The cell is the sensitivity (95% Wilson CI) at the
+    # closest achievable operating point; achieved-specificity deviation is
+    # captured in a footnote and the full sweep is in Table S7.
+    N_HAZ_RW = 165
     rows = []
     for arch in curves_df["architecture"].unique():
         curve = curves_df[curves_df["architecture"] == arch]
@@ -163,9 +178,15 @@ def render_table3_operating_points(
             best = curve_at.sort_values(["spec_distance", "threshold"]).iloc[0]
             sens = best["sensitivity"]
             achieved_spec = best["specificity"]
+            # Wilson 95% CI on sensitivity at this operating point. TP at the
+            # selected threshold = round(sens * N_HAZ); denominator is N_HAZ.
+            tp_here = round(float(sens) * N_HAZ_RW)
+            sens_lo, sens_hi = _wilson_ci(tp_here, N_HAZ_RW)
             # Flag the cell with † if achieved specificity deviates more than 0.02 from target
             flag = "†" if abs(achieved_spec - target_spec) > 0.02 else ""
-            row[f"Sens at Spec ≥ {target_spec:.2f}"] = f"{sens:.3f}{flag}"
+            row[f"Sens at Spec ≥ {target_spec:.2f}"] = (
+                f"{sens:.3f}{flag} ({sens_lo:.3f}–{sens_hi:.3f})"
+            )
         rows.append(row)
 
     out_df = pd.DataFrame(rows)
@@ -528,11 +549,25 @@ def render_table5_cascade_pareto(results_dir: Path, output_dir: Path) -> Path:
         mcc_lo, mcc_hi = np.nanpercentile(mccs, 2.5), np.nanpercentile(mccs, 97.5)
         return ((f1_lo, f1_hi), (mcc_lo, mcc_hi))
 
+    N_HAZ_RW = 165
+    N_TOTAL_RW = 2000
     rows = []
     for _, r in pf.iterrows():
         ppv_lo, ppv_hi = _ppv_ci(r.get("tp"), r.get("fp"))
         (f1_lo, f1_hi), (mcc_lo, mcc_hi) = _bootstrap_f1_mcc(
             r.get("tp"), r.get("fp"), r.get("tn"), r.get("fn"))
+        # FN per 1,000 CI: derived from Wilson sensitivity CI bounds
+        s_lo = r.get("sensitivity_ci_lo", float("nan"))
+        s_hi = r.get("sensitivity_ci_hi", float("nan"))
+        fn1k_lo = (1.0 - s_hi) * N_HAZ_RW * 1000.0 / N_TOTAL_RW if pd.notna(s_hi) else float("nan")
+        fn1k_hi = (1.0 - s_lo) * N_HAZ_RW * 1000.0 / N_TOTAL_RW if pd.notna(s_lo) else float("nan")
+        fn1k_pt = r["fn_per_1000"]
+        if pd.notna(fn1k_pt) and pd.notna(fn1k_lo) and pd.notna(fn1k_hi):
+            fn1k_str = f"{fn1k_pt:.1f} ({fn1k_lo:.1f}–{fn1k_hi:.1f})"
+        elif pd.notna(fn1k_pt):
+            fn1k_str = f"{fn1k_pt:.1f}"
+        else:
+            fn1k_str = "—"
         rows.append({
             "Cascade (Stage 1 × Stage 2)": fmt_pair(r["stage1"], r["stage2"]),
             "Sensitivity (95% CI)": fmt_ci(r["sensitivity"], r["sensitivity_ci_lo"], r["sensitivity_ci_hi"]),
@@ -540,7 +575,7 @@ def render_table5_cascade_pareto(results_dir: Path, output_dir: Path) -> Path:
             "PPV (95% CI)": fmt_ci(r["ppv"], ppv_lo, ppv_hi) if pd.notna(r["ppv"]) else "—",
             "F1 (95% CI)": fmt_ci(r["f1"], f1_lo, f1_hi) if pd.notna(r["f1"]) else "—",
             "MCC (95% CI)": fmt_ci(r["mcc"], mcc_lo, mcc_hi) if pd.notna(r["mcc"]) else "—",
-            "FN per 1,000": f"{r['fn_per_1000']:.1f}",
+            "FN per 1,000 (95% CI)": fn1k_str,
         })
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "table5_cascade_pareto.csv"
@@ -600,6 +635,7 @@ def render_table8_amc_stack(results_dir: Path, output_dir: Path) -> Path:
         md_path.write_text("_[Table 8 not yet rendered — amc_guardrail_stack.csv missing]_\n")
         return csv_path
     df = pd.read_csv(p)
+    import math
     rows = []
     for _, r in df.iterrows():
         tp = r.get("tp", float("nan"))
@@ -609,13 +645,29 @@ def render_table8_amc_stack(results_dir: Path, output_dir: Path) -> Path:
         sens_lo, sens_hi = _wilson_ci(tp, tp + fn) if pd.notna(tp) and pd.notna(fn) else (float("nan"), float("nan"))
         spec_lo, spec_hi = _wilson_ci(tn, tn + fp) if pd.notna(tn) and pd.notna(fp) else (float("nan"), float("nan"))
         ppv_lo, ppv_hi = _wilson_ci(tp, tp + fp) if pd.notna(tp) and pd.notna(fp) else (float("nan"), float("nan"))
+        # Parametric bootstrap CIs on F1 and MCC (1,000 iter, seed=42)
+        f1_lo = f1_hi = mcc_lo = mcc_hi = float("nan")
+        if all(pd.notna(x) for x in [tp, fp, tn, fn]):
+            rng = np.random.RandomState(42)
+            n_pos = int(tp + fn); n_neg = int(tn + fp)
+            sens_p = tp / max(n_pos, 1); spec_p = tn / max(n_neg, 1)
+            f1s, mccs = [], []
+            for _b in range(1000):
+                tp_b = rng.binomial(n_pos, sens_p); tn_b = rng.binomial(n_neg, spec_p)
+                fn_b = n_pos - tp_b; fp_b = n_neg - tn_b
+                df1 = 2*tp_b + fp_b + fn_b
+                f1s.append((2*tp_b)/df1 if df1 > 0 else float("nan"))
+                dm = math.sqrt((tp_b+fp_b)*(tp_b+fn_b)*(tn_b+fp_b)*(tn_b+fn_b))
+                mccs.append((tp_b*tn_b - fp_b*fn_b)/dm if dm > 0 else float("nan"))
+            f1_lo, f1_hi = np.nanpercentile(f1s, 2.5), np.nanpercentile(f1s, 97.5)
+            mcc_lo, mcc_hi = np.nanpercentile(mccs, 2.5), np.nanpercentile(mccs, 97.5)
         rows.append({
             "AMC stack configuration": r["stack_label"],
             "Sensitivity (95% CI)": fmt_ci(r["sensitivity"], sens_lo, sens_hi),
             "Specificity (95% CI)": fmt_ci(r["specificity"], spec_lo, spec_hi),
             "PPV (95% CI)": fmt_ci(r["ppv"], ppv_lo, ppv_hi) if pd.notna(r["ppv"]) else "—",
-            "F1": f"{r['f1']:.3f}" if pd.notna(r["f1"]) else "—",
-            "MCC": f"{r['mcc']:.3f}" if pd.notna(r["mcc"]) else "—",
+            "F1 (95% CI)": fmt_ci(r["f1"], f1_lo, f1_hi) if pd.notna(r["f1"]) else "—",
+            "MCC (95% CI)": fmt_ci(r["mcc"], mcc_lo, mcc_hi) if pd.notna(r["mcc"]) else "—",
             "Reached benchmark?": "Yes" if r["clinical_grade"] else "No",
         })
     out_df = pd.DataFrame(rows)
@@ -648,14 +700,25 @@ def render_table10_deployment_policies(results_dir: Path, output_dir: Path) -> P
         sens_lo, sens_hi = _wilson_ci(tp, tp + fn)
         spec_lo, spec_hi = _wilson_ci(tn, tn + fp)
         ppv_lo, ppv_hi = _wilson_ci(tp, tp + fp)
+        # Wilson CIs on per-1,000 rates: alerts and caught are proportions of N_TOTAL
+        # (k/N) × 1000; missed is FN/N_TOTAL × 1000. Each uses Wilson on a binomial.
+        n_alerts = int(round(tp + fp))
+        n_caught = int(round(tp))
+        n_missed = int(round(fn))
+        a_lo, a_hi = _wilson_ci(n_alerts, N_TOTAL)
+        c_lo, c_hi = _wilson_ci(n_caught, N_TOTAL)
+        m_lo, m_hi = _wilson_ci(n_missed, N_TOTAL)
+        alerts_str = f"{alerts_per_1000:.0f} ({a_lo*1000:.0f}–{a_hi*1000:.0f})"
+        caught_str = f"{caught_per_1000:.1f} ({c_lo*1000:.1f}–{c_hi*1000:.1f})"
+        missed_str = f"{misses_per_1000:.1f} ({m_lo*1000:.1f}–{m_hi*1000:.1f})"
         return {
             "Configuration": label,
             "Sensitivity (95% CI)": fmt_ci(sens, sens_lo, sens_hi),
             "Specificity (95% CI)": fmt_ci(spec, spec_lo, spec_hi),
             "PPV (95% CI)": fmt_ci(ppv, ppv_lo, ppv_hi),
-            "Alerts per 1,000 messages (clinician review load)": f"{alerts_per_1000:.0f}",
-            "Hazards caught per 1,000 messages": f"{caught_per_1000:.1f}",
-            "Hazards missed per 1,000 messages": f"{misses_per_1000:.1f}",
+            "Alerts per 1,000 messages (95% CI; clinician review load)": alerts_str,
+            "Hazards caught per 1,000 messages (95% CI)": caught_str,
+            "Hazards missed per 1,000 messages (95% CI)": missed_str,
             "Note": note,
         }
 
@@ -757,9 +820,9 @@ def render_table10_deployment_policies(results_dir: Path, output_dir: Path) -> P
         "Sensitivity (95% CI)": "≥ 0.800",
         "Specificity (95% CI)": "≥ 0.800",
         "PPV (95% CI)": "—",
-        "Alerts per 1,000 messages (clinician review load)": "—",
-        "Hazards caught per 1,000 messages": "—",
-        "Hazards missed per 1,000 messages": "≤ 16.5",
+        "Alerts per 1,000 messages (95% CI; clinician review load)": "—",
+        "Hazards caught per 1,000 messages (95% CI)": "—",
+        "Hazards missed per 1,000 messages (95% CI)": "≤ 16.5",
         "Note": "Anchored to IDx-DR pivotal trial (sens 87.2%, spec 90.7%)",
     })
 
@@ -775,6 +838,8 @@ def render_table9_deployment_grade(results_dir: Path, output_dir: Path) -> Path:
     ag_path = results_dir / "deployment_grade_agreement.csv"
     csv_path = output_dir / "table9_deployment_grade.csv"
     md_path = output_dir / "table9_deployment_grade.md"
+    N_HAZ_RW = 165
+    N_BEN_RW = 1835
     parts = []
     if sf_path.exists():
         sf = pd.read_csv(sf_path)
@@ -782,12 +847,27 @@ def render_table9_deployment_grade(results_dir: Path, output_dir: Path) -> Path:
         # Build table
         a_rows = []
         for _, r in sf.iterrows():
+            # Wilson 95% CI on winning sens and max specificity
+            ws = r.get("winning_sensitivity", float("nan"))
+            ms = r.get("max_specificity", float("nan"))
+            if pd.notna(ws):
+                tp = round(float(ws) * N_HAZ_RW)
+                ws_lo, ws_hi = _wilson_ci(tp, N_HAZ_RW)
+                ws_str = f"{ws:.3f} ({ws_lo:.3f}–{ws_hi:.3f})"
+            else:
+                ws_str = "—"
+            if pd.notna(ms):
+                tn = round(float(ms) * N_BEN_RW)
+                ms_lo, ms_hi = _wilson_ci(tn, N_BEN_RW)
+                ms_str = f"{ms:.3f} ({ms_lo:.3f}–{ms_hi:.3f})"
+            else:
+                ms_str = "—"
             a_rows.append({
                 "Sensitivity floor": f"≥ {r['sens_floor']:.2f}",
                 "N configurations meeting floor": int(r["n_configurations_meeting_floor"]) if pd.notna(r["n_configurations_meeting_floor"]) else 0,
-                "Max specificity at floor": f"{r['max_specificity']:.3f}" if pd.notna(r["max_specificity"]) else "—",
+                "Max specificity at floor (95% CI)": ms_str,
                 "Winning configuration": (f"{r['winning_strategy_type']} / {r['winning_label']}" if pd.notna(r.get("winning_strategy_type")) else "—"),
-                "Sens (winning)": f"{r['winning_sensitivity']:.3f}" if pd.notna(r["winning_sensitivity"]) else "—",
+                "Sens (winning) (95% CI)": ws_str,
             })
         a_df = pd.DataFrame(a_rows)
         # Manual pipe-delimited markdown (no tabulate dependency)
@@ -803,12 +883,20 @@ def render_table9_deployment_grade(results_dir: Path, output_dir: Path) -> Path:
         parts.append("\n\n**Panel B — Disagreement-stratified clinician-review policy**\n")
         b_rows = []
         for _, r in ag.iterrows():
+            # Wilson 95% CI on hazard prevalence within stratum
+            n_msgs = int(r["n_messages"]) if pd.notna(r["n_messages"]) else 0
+            n_haz = int(r["n_hazards"]) if pd.notna(r["n_hazards"]) else 0
+            if n_msgs > 0:
+                pr_lo, pr_hi = _wilson_ci(n_haz, n_msgs)
+                pr_str = f"{r['hazard_prevalence_in_stratum']:.3f} ({pr_lo:.3f}–{pr_hi:.3f})"
+            else:
+                pr_str = "—"
             b_rows.append({
                 "Stratum (n architectures flagging)": r["stratum"],
                 "Recommended policy": r["policy"].replace("_", " "),
-                "N messages": int(r["n_messages"]) if pd.notna(r["n_messages"]) else 0,
-                "N hazards (true)": int(r["n_hazards"]) if pd.notna(r["n_hazards"]) else 0,
-                "Hazard prevalence in stratum": f"{r['hazard_prevalence_in_stratum']:.3f}" if pd.notna(r["hazard_prevalence_in_stratum"]) else "—",
+                "N messages": n_msgs,
+                "N hazards (true)": n_haz,
+                "Hazard prevalence in stratum (95% CI)": pr_str,
                 "Share of total messages": f"{r['share_of_total_messages']:.1%}" if pd.notna(r["share_of_total_messages"]) else "—",
             })
         b_df = pd.DataFrame(b_rows)
@@ -1137,20 +1225,51 @@ def render_table6_threshold_optimized(results_dir: Path, output_dir: Path) -> Pa
         spec_lo, spec_hi = _wilson_ci(tn, tn + fp)
         return fmt_ci(sens, sens_lo, sens_hi), fmt_ci(spec, spec_lo, spec_hi)
 
+    def _f1_mcc_boot_at_op(sens, spec, n_iter=1000, seed=42):
+        """Parametric bootstrap 95% CI for F1 and MCC at a given (sens, spec) operating point."""
+        import math
+        if any(pd.isna(x) for x in [sens, spec]):
+            return ((float("nan"), float("nan")), (float("nan"), float("nan")))
+        rng = np.random.RandomState(seed)
+        f1s, mccs = [], []
+        for _ in range(n_iter):
+            tp_b = rng.binomial(N_HAZ, sens)
+            tn_b = rng.binomial(N_BEN, spec)
+            fn_b = N_HAZ - tp_b
+            fp_b = N_BEN - tn_b
+            denom_f1 = 2 * tp_b + fp_b + fn_b
+            f1_b = (2 * tp_b) / denom_f1 if denom_f1 > 0 else float("nan")
+            denom_mcc = math.sqrt((tp_b + fp_b) * (tp_b + fn_b) * (tn_b + fp_b) * (tn_b + fn_b))
+            mcc_b = (tp_b * tn_b - fp_b * fn_b) / denom_mcc if denom_mcc > 0 else float("nan")
+            f1s.append(f1_b); mccs.append(mcc_b)
+        return ((np.nanpercentile(f1s, 2.5), np.nanpercentile(f1s, 97.5)),
+                (np.nanpercentile(mccs, 2.5), np.nanpercentile(mccs, 97.5)))
+
     rows = []
     for _, r in th.iterrows():
         f1_sens_ci, f1_spec_ci = _ci_pair(r["f1_max_sens"], r["f1_max_spec"])
         mcc_sens_ci, mcc_spec_ci = _ci_pair(r["mcc_max_sens"], r["mcc_max_spec"])
+        # Bootstrap CIs on F1-max and MCC-max at their respective operating points
+        (f1_lo, f1_hi), _ = _f1_mcc_boot_at_op(r["f1_max_sens"], r["f1_max_spec"])
+        _, (mcc_lo, mcc_hi) = _f1_mcc_boot_at_op(r["mcc_max_sens"], r["mcc_max_spec"])
+        # Wilson CIs on closest-to-benchmark operating point
+        cp_sens = r.get("closest_to_clinical_grade_sens", float("nan"))
+        cp_spec = r.get("closest_to_clinical_grade_spec", float("nan"))
+        if pd.notna(cp_sens) and pd.notna(cp_spec):
+            cp_sens_ci, cp_spec_ci = _ci_pair(cp_sens, cp_spec)
+            cp_str = f"{cp_sens:.3f} / {cp_spec:.3f} (sens CI {cp_sens_ci.split('(')[-1].rstrip(')')}; spec CI {cp_spec_ci.split('(')[-1].rstrip(')')})"
+        else:
+            cp_str = "—"
         rows.append({
             "Architecture": ARCH_DISPLAY.get(r["architecture"], r["architecture"]),
-            "F1-max": f"{r['f1_max']:.3f}",
+            "F1-max (95% CI)": fmt_ci(r["f1_max"], f1_lo, f1_hi),
             "Sens at F1-max (95% CI)": f1_sens_ci,
             "Spec at F1-max (95% CI)": f1_spec_ci,
-            "MCC-max": f"{r['mcc_max']:.3f}",
+            "MCC-max (95% CI)": fmt_ci(r["mcc_max"], mcc_lo, mcc_hi),
             "Sens at MCC-max (95% CI)": mcc_sens_ci,
             "Spec at MCC-max (95% CI)": mcc_spec_ci,
             "Reached autonomous benchmark?": "Yes" if r["clinical_grade_reachable"] else "No",
-            "Sens/Spec at closest point": f"{r['closest_to_clinical_grade_sens']:.3f} / {r['closest_to_clinical_grade_spec']:.3f}",
+            "Sens/Spec at closest point (95% CI)": cp_str,
         })
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "table6_threshold_optimized.csv"
@@ -1177,15 +1296,42 @@ def render_tableS3_cascade_full(results_dir: Path, output_dir: Path) -> Path:
     def fmt_pair(s1, s2):
         return f"{ARCH_DISPLAY_SHORT.get(s1, s1)} × {ARCH_DISPLAY_SHORT.get(s2, s2)}"
 
+    def _boot_f1_mcc_local(tp, fp, tn, fn, n_iter=500, seed=42):
+        """Lightweight parametric bootstrap for F1 and MCC on a 2x2 table."""
+        import math
+        if any(pd.isna(x) for x in [tp, fp, tn, fn]):
+            return ((float("nan"), float("nan")), (float("nan"), float("nan")))
+        rng = np.random.RandomState(seed)
+        n_pos = int(tp + fn); n_neg = int(tn + fp)
+        sens_p = tp / max(n_pos, 1); spec_p = tn / max(n_neg, 1)
+        f1s, mccs = [], []
+        for _ in range(n_iter):
+            tp_b = rng.binomial(n_pos, sens_p)
+            tn_b = rng.binomial(n_neg, spec_p)
+            fn_b = n_pos - tp_b; fp_b = n_neg - tn_b
+            df1 = 2*tp_b + fp_b + fn_b
+            f1 = (2*tp_b)/df1 if df1 > 0 else float("nan")
+            dm = math.sqrt((tp_b+fp_b)*(tp_b+fn_b)*(tn_b+fp_b)*(tn_b+fn_b))
+            mcc = (tp_b*tn_b - fp_b*fn_b)/dm if dm > 0 else float("nan")
+            f1s.append(f1); mccs.append(mcc)
+        return ((np.nanpercentile(f1s, 2.5), np.nanpercentile(f1s, 97.5)),
+                (np.nanpercentile(mccs, 2.5), np.nanpercentile(mccs, 97.5)))
+
     rows = []
     for _, r in cm.iterrows():
+        tp = r.get("tp", float("nan")); fp = r.get("fp", float("nan"))
+        tn = r.get("tn", float("nan")); fn = r.get("fn", float("nan"))
+        sens_lo, sens_hi = _wilson_ci(tp, tp + fn) if pd.notna(tp) and pd.notna(fn) else (float("nan"), float("nan"))
+        spec_lo, spec_hi = _wilson_ci(tn, tn + fp) if pd.notna(tn) and pd.notna(fp) else (float("nan"), float("nan"))
+        ppv_lo, ppv_hi = _wilson_ci(tp, tp + fp) if pd.notna(tp) and pd.notna(fp) else (float("nan"), float("nan"))
+        (f1_lo, f1_hi), (mcc_lo, mcc_hi) = _boot_f1_mcc_local(tp, fp, tn, fn)
         rows.append({
             "Cascade": fmt_pair(r["stage1"], r["stage2"]),
-            "Sens": f"{r['sensitivity']:.3f}",
-            "Spec": f"{r['specificity']:.3f}",
-            "PPV": f"{r['ppv']:.3f}" if pd.notna(r["ppv"]) else "—",
-            "F1": f"{r['f1']:.3f}" if pd.notna(r["f1"]) else "—",
-            "MCC": f"{r['mcc']:.3f}" if pd.notna(r["mcc"]) else "—",
+            "Sens (95% CI)": fmt_ci(r["sensitivity"], sens_lo, sens_hi),
+            "Spec (95% CI)": fmt_ci(r["specificity"], spec_lo, spec_hi),
+            "PPV (95% CI)": fmt_ci(r["ppv"], ppv_lo, ppv_hi) if pd.notna(r["ppv"]) else "—",
+            "F1 (95% CI)": fmt_ci(r["f1"], f1_lo, f1_hi) if pd.notna(r["f1"]) else "—",
+            "MCC (95% CI)": fmt_ci(r["mcc"], mcc_lo, mcc_hi) if pd.notna(r["mcc"]) else "—",
         })
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "tableS3_cascade_full.csv"

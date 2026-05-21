@@ -30,7 +30,27 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from llm_clients.anthropic_client import ClaudeOpusClient
 from llm_clients.gemini_client import GeminiProClient
 from llm_clients.few_shot import ClaudeFewShotClient
-from llm_clients.rag import ClaudeRAGClient
+from llm_clients.openai_client import GPT55Client
+from llm_clients.rag import ClaudeRAGClient, GPT55RAGClient, GeminiRAGClient
+
+
+def _resolve_training_corpus() -> Path:
+    """Find the 1,280-example labeled training corpus.
+
+    Modal mounts it at /data/combined_train.json; local runs use the
+    Waymark-local path. Returns the first existing path; raises if none found.
+    """
+    candidates = [
+        Path("/data/combined_train.json"),
+        Path("/Users/sanjaybasu/waymark-local/packaging/h_neuron_triage/data/combined_train.json"),
+        Path("/Users/sanjaybasu/waymark-local/packaging/rl_llm_safety_github_v3/data/combined_train.json"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    raise FileNotFoundError(
+        f"combined_train.json not found at any of: {[str(c) for c in candidates]}"
+    )
 
 
 def load_test_records(path: Path) -> tuple[list[dict], list[str]]:
@@ -228,10 +248,24 @@ def run_llm_inference(
         elif arch == "claude_opus_4_7_fewshot":
             client = ClaudeFewShotClient()
         elif arch == "claude_opus_4_7_rag":
-            training_path = Path("/data/combined_train.json")
+            training_path = _resolve_training_corpus()
             with open(training_path) as fh:
                 training_records = json.load(fh)
             client = ClaudeRAGClient(training_records=training_records, k=8)
+        elif arch == "gpt_5_5_safety":
+            client = GPT55Client(prompt_variant="safety")
+        elif arch == "gpt_5_5_default":
+            client = GPT55Client(prompt_variant="default")
+        elif arch == "gpt_5_5_rag":
+            training_path = _resolve_training_corpus()
+            with open(training_path) as fh:
+                training_records = json.load(fh)
+            client = GPT55RAGClient(training_records=training_records, k=8)
+        elif arch == "gemini_3_1_pro_rag":
+            training_path = _resolve_training_corpus()
+            with open(training_path) as fh:
+                training_records = json.load(fh)
+            client = GeminiRAGClient(training_records=training_records, k=8)
         else:
             print(f"  Unknown LLM architecture: {arch} — skipping")
             continue

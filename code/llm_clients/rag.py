@@ -208,3 +208,74 @@ class ClaudeRAGClient(LLMClient):
             messages=[{"role": "user", "content": message}],
         )
         return "".join(b.text for b in response.content if hasattr(b, "text"))
+
+
+class GPT55RAGClient(LLMClient):
+    """GPT-5.5 + k-NN RAG over the labeled training set (Responses API)."""
+
+    model_version = "gpt-5.5"
+
+    def __init__(self, training_records: list[dict], k: int = 8):
+        from openai import OpenAI
+        self.prompt_variant = "rag"
+        self.k = k
+        self.index = RAGIndex(training_records)
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY not set")
+        self._client = OpenAI(api_key=api_key)
+        self.system_prompt = ""
+
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type(Exception),
+        reraise=True,
+    )
+    def _call(self, system_prompt: str, message: str) -> str:
+        retrieved = self.index.topk(message, k=self.k)
+        prompt = build_rag_prompt(retrieved, k=self.k)
+        resp = self._client.responses.create(
+            model=self.model_version,
+            input=[
+                {"role": "developer", "content": prompt},
+                {"role": "user", "content": message},
+            ],
+        )
+        return resp.output_text or ""
+
+
+class GeminiRAGClient(LLMClient):
+    """Gemini 3.1 Pro Preview + k-NN RAG over the labeled training set."""
+
+    model_version = "gemini-3.1-pro-preview"
+
+    def __init__(self, training_records: list[dict], k: int = 8):
+        import google.generativeai as genai
+        self.prompt_variant = "rag"
+        self.k = k
+        self.index = RAGIndex(training_records)
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY (or GOOGLE_API_KEY) not set")
+        genai.configure(api_key=api_key)
+        self._genai = genai
+        self.system_prompt = ""
+
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type(Exception),
+        reraise=True,
+    )
+    def _call(self, system_prompt: str, message: str) -> str:
+        retrieved = self.index.topk(message, k=self.k)
+        prompt = build_rag_prompt(retrieved, k=self.k)
+        # Build model per-call so we can pass the dynamic system_instruction
+        model = self._genai.GenerativeModel(
+            model_name=self.model_version,
+            system_instruction=prompt,
+            generation_config={"temperature": 0.0, "max_output_tokens": 512},
+        )
+        response = model.generate_content(message)
+        return response.text or ""

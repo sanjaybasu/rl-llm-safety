@@ -1,8 +1,10 @@
-"""GPT-5.5 client (OpenAI) — OPTIONAL row.
+"""GPT-5.5 client (OpenAI) — Responses API.
 
-Paid API. Default plan omits this row. Include only if Phase B literature
-review reveals BMC MIDM reviewers commonly expect OpenAI parity in addition to
-Anthropic + Google frontier coverage.
+GPT-5.5 returns "not a chat model" on /v1/chat/completions; this client uses
+the /v1/responses endpoint directly. Supports safety-augmented and default
+system prompt variants and an optional retrieval-augmented (RAG) variant
+that mirrors `ClaudeRAGClient` (k-NN over the 1,280-example labeled training
+corpus via the shared `RAGIndex`).
 """
 from __future__ import annotations
 
@@ -20,7 +22,7 @@ from .base import LLMClient
 
 
 class GPT55Client(LLMClient):
-    """GPT-5.5 with safety-augmented or default system prompt."""
+    """GPT-5.5 with safety-augmented or default system prompt (Responses API)."""
 
     model_version = "gpt-5.5"
 
@@ -39,15 +41,12 @@ class GPT55Client(LLMClient):
         reraise=True,
     )
     def _call(self, system_prompt: str, message: str) -> str:
-        # Use Flex tier where supported to minimize cost
-        response = self._client.chat.completions.create(
+        # Responses API: system role becomes "developer"; no temperature.
+        resp = self._client.responses.create(
             model=self.model_version,
-            temperature=0.0,
-            max_tokens=512,
-            seed=42,
-            messages=[
-                {"role": "system", "content": system_prompt},
+            input=[
+                {"role": "developer", "content": system_prompt},
                 {"role": "user", "content": message},
             ],
         )
-        return response.choices[0].message.content or ""
+        return resp.output_text or ""
