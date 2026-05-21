@@ -255,16 +255,21 @@ def render_tableS2_delta_bootstrap(delta_df: pd.DataFrame, output_dir: Path) -> 
     """Table S2: Δ sens/spec physician → real-world with bootstrap CIs."""
     if delta_df.empty:
         return output_dir / "tableS2_delta_bootstrap.csv"
+    # Sample sizes per test set (hazards-positive subgroup determines Wilson CI for sens)
+    N_HAZ_PHYS = 27  # physician-holdout hazards
+    N_HAZ_RW = 165   # real-world hazards
     rows = []
     for _, row in delta_df.iterrows():
+        phys_lo, phys_hi = _wilson_ci(round(row["phys_sens"] * N_HAZ_PHYS), N_HAZ_PHYS)
+        real_lo, real_hi = _wilson_ci(round(row["real_sens"] * N_HAZ_RW), N_HAZ_RW)
         rows.append({
             "Architecture": ARCH_DISPLAY.get(row["architecture"], row["architecture"]),
+            "Physician-set sensitivity (95% CI)": fmt_ci(row["phys_sens"], phys_lo, phys_hi),
+            "Real-world sensitivity (95% CI)": fmt_ci(row["real_sens"], real_lo, real_hi),
             "Δ Sens, pp (95% CI)": f"{row['delta_sens_pp']:+.1f} "
                                     f"({row['delta_sens_ci_lo']:+.1f} to {row['delta_sens_ci_hi']:+.1f})",
             "Δ Spec, pp (95% CI)": f"{row['delta_spec_pp']:+.1f} "
                                     f"({row['delta_spec_ci_lo']:+.1f} to {row['delta_spec_ci_hi']:+.1f})",
-            "Phys sens": f"{row['phys_sens']:.3f}",
-            "Real sens": f"{row['real_sens']:.3f}",
         })
     out_df = pd.DataFrame(rows)
     csv_path = output_dir / "tableS2_delta_bootstrap.csv"
@@ -556,17 +561,26 @@ def render_tableS4_category_stratification(results_dir: Path, output_dir: Path) 
         pd.DataFrame().to_csv(csv_path, index=False)
         md_path.write_text("_[Table S4 not yet rendered — empty stratification]_\n")
         return csv_path
+    # Compute Wilson 95% CI per (architecture, category) cell from tp/fn
+    def _cell_with_ci(tp, fn, sens):
+        n = tp + fn
+        if n <= 0:
+            return "—"
+        lo, hi = _wilson_ci(tp, n)
+        return f"{sens:.3f} [{lo:.2f}–{hi:.2f}]"
+
+    cs = cs.copy()
+    cs["cell"] = cs.apply(lambda r: _cell_with_ci(r["tp"], r["fn"], r["sensitivity"]), axis=1)
     pivot = cs.pivot_table(index="hazard_category", columns="architecture",
-                            values="sensitivity", aggfunc="first").round(3)
-    # Order columns by mean across categories (descending = best-performing first)
-    col_means = pivot.mean(axis=0).sort_values(ascending=False)
+                            values="cell", aggfunc="first")
+    # Order columns by mean sensitivity across categories (descending = best-performing first)
+    sens_pivot = cs.pivot_table(index="hazard_category", columns="architecture",
+                                 values="sensitivity", aggfunc="first")
+    col_means = sens_pivot.mean(axis=0).sort_values(ascending=False)
     pivot = pivot[col_means.index]
-    # Use display labels
     pivot.columns = [ARCH_DISPLAY.get(c, c) for c in pivot.columns]
-    # Add a column with n_hazards per category
     n_per_cat = cs.groupby("hazard_category")["n_hazards"].first()
     pivot.insert(0, "n hazards", n_per_cat)
-    # Add a row with mean sensitivity per architecture across categories
     out_df = pivot.reset_index()
     out_df.to_csv(csv_path, index=False)
     write_markdown_table(out_df, md_path)
