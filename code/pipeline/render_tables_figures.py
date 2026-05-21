@@ -156,14 +156,46 @@ def _delong_auroc_ci(proba, true, alpha: float = 0.05) -> tuple:
     return (auroc, max(0.0, auroc - z * se), min(1.0, auroc + z * se))
 
 
-def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) -> Path:
-    """Table 2: per-architecture detection metrics on real-world test set."""
+def render_table2_detection_metrics(
+    metrics_df: pd.DataFrame, output_dir: Path,
+    predictions_dir: Path | None = None,
+) -> Path:
+    """Table 2: per-architecture detection metrics on real-world test set.
+
+    AUROC 95% CIs are computed by the DeLong (1988) structural-variance method
+    in-line from the per-message prediction files. Architectures that emit
+    discrete hazard flags rather than continuous probability scalars (the
+    frontier LLMs and ActionHead's hazard endpoint) display "N/A*" with an
+    in-table footnote, consistent with the Table 2 caption.
+    """
     df = metrics_df[metrics_df["dataset"] == "realworld_n2000"].copy()
     N_HAZ_RW = 165
     N_TOTAL_RW = 2000
+    # Build a {architecture: (proba, true)} map from the per-message CSVs so
+    # DeLong CIs can be computed locally without requiring metrics_phase to
+    # have written auroc_ci_lo/hi columns.
+    pred_index: dict[str, tuple] = {}
+    if predictions_dir is not None and Path(predictions_dir).exists():
+        for csv_path in sorted(Path(predictions_dir).glob("*.csv")):
+            try:
+                pdf = pd.read_csv(csv_path)
+            except Exception:
+                continue
+            sub = pdf[pdf["dataset"] == "realworld_n2000"].copy()
+            if sub.empty:
+                continue
+            arch = str(sub["architecture"].iloc[0])
+            sub["pred_proba"] = pd.to_numeric(sub.get("pred_proba"), errors="coerce")
+            if sub["pred_proba"].isna().all():
+                continue
+            proba = sub["pred_proba"].values
+            true = sub["true_hazard"].astype(int).values
+            pred_index[arch] = (proba, true)
+
     rows = []
     for _, row in df.iterrows():
         d = row.to_dict()
+        arch = d["architecture"]
         tp = d.get("tp", float("nan"))
         fp = d.get("fp", float("nan"))
         tn = d.get("tn", float("nan"))
@@ -183,10 +215,22 @@ def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) 
             fn_per_1k_str = f"{fn_per_1000:.1f}"
         else:
             fn_per_1k_str = "—"
+        # AUROC + DeLong 95% CI cell
+        if arch in pred_index:
+            proba, true = pred_index[arch]
+            auroc_pt, lo, hi = _delong_auroc_ci(proba, true)
+            if not (np.isnan(auroc_pt) or np.isnan(lo) or np.isnan(hi)):
+                auroc_cell = f"{auroc_pt:.3f} ({lo:.3f}–{hi:.3f})"
+            elif not np.isnan(auroc_pt):
+                auroc_cell = f"{auroc_pt:.3f}"
+            else:
+                auroc_cell = "N/A*"
+        else:
+            auroc_cell = "N/A*"
         def _i(x):
             return f"{int(x)}" if not (x is None or (isinstance(x, float) and np.isnan(x))) else "—"
         rows.append({
-            "Architecture": ARCH_DISPLAY.get(d["architecture"], d["architecture"]),
+            "Architecture": ARCH_DISPLAY.get(arch, arch),
             "TP / FN / TN / FP": f"{_i(tp)} / {_i(fn)} / {_i(tn)} / {_i(fp)}",
             "Sensitivity (95% CI)": fmt_ci(
                 d.get("sensitivity", float("nan")),
@@ -208,12 +252,7 @@ def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) 
                 d.get("mcc", float("nan")),
                 d.get("mcc_ci_lo", float("nan")),
                 d.get("mcc_ci_hi", float("nan"))),
-            "AUROC (95% CI)": (
-                fmt_ci(d.get("auroc", float("nan")),
-                       d.get("auroc_ci_lo", float("nan")),
-                       d.get("auroc_ci_hi", float("nan")))
-                if not np.isnan(d.get("auroc", float("nan"))) else "N/A"
-            ),
+            "AUROC (95% CI)": auroc_cell,
             "FN per 1,000 (95% CI)": fn_per_1k_str,
         })
     out_df = pd.DataFrame(rows)
@@ -221,6 +260,20 @@ def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) 
     md_path = output_dir / "table2_detection_metrics.md"
     out_df.to_csv(csv_path, index=False)
     write_markdown_table(out_df, md_path)
+    # In-table footnote so the asterisk on the N/A cells is explained locally
+    # alongside the manuscript caption.
+    with open(md_path, "a") as fh:
+        fh.write(
+            "\n\n*N/A\\*: AUROC is undefined for this architecture because the "
+            "configured inference API returns a discrete hazard flag in a "
+            "structured JSON output rather than a continuous probability scalar, "
+            "leaving no score to sweep across thresholds. This affects the three "
+            "frontier large language model configurations (Claude Opus 4.7, "
+            "GPT-5.5, Gemini 3.1 Pro Preview) under both the safety-augmented and "
+            "retrieval-augmented prompts, and the ActionHead action recommender, "
+            "which emits a discrete action class rather than a calibrated hazard "
+            "probability.*\n"
+        )
     return csv_path
 
 
@@ -1493,7 +1546,7 @@ def render_all(predictions_dir: Path, results_dir: Path) -> dict[str, Path]:
 
     out: dict[str, Path] = {}
     print("\n[render] Table 2 (detection metrics)")
-    out["table2"] = render_table2_detection_metrics(metrics_df, tables_dir)
+    out["table2"] = render_table2_detection_metrics(metrics_df, tables_dir, predictions_dir=predictions_dir)
     print(f"  → {out['table2']}")
     print("[render] Table 3 (operating points)")
     out["table3"] = render_table3_operating_points(metrics_df, curves_df, tables_dir)
