@@ -98,8 +98,11 @@ def render_table2_detection_metrics(metrics_df: pd.DataFrame, output_dir: Path) 
         fn = d.get("fn", float("nan"))
         ppv_lo, ppv_hi = _wilson_ci(tp, tp + fp)
         npv_lo, npv_hi = _wilson_ci(tn, tn + fn)
+        def _i(x):
+            return f"{int(x)}" if not (x is None or (isinstance(x, float) and np.isnan(x))) else "—"
         rows.append({
             "Architecture": ARCH_DISPLAY.get(d["architecture"], d["architecture"]),
+            "TP / FN / TN / FP": f"{_i(tp)} / {_i(fn)} / {_i(tn)} / {_i(fp)}",
             "Sensitivity (95% CI)": fmt_ci(
                 d.get("sensitivity", float("nan")),
                 d.get("sensitivity_ci_lo", float("nan")),
